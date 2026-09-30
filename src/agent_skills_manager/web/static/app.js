@@ -214,10 +214,10 @@ function renderSkills() {
                                 `).join('')}
                                 <td class="actions-col">
                                     <div class="actions table-actions">
-                                        <button class="btn small" data-edit="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Edit</button>
-                                        <button class="btn small" data-preview-skill="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Preview</button>
-                                        ${skill.source_url ? `<button class="btn small" data-refresh-skill="${escapeHtml(skill.name)}" title="${escapeHtml(skill.source_url)}" ${hasCentral ? '' : 'disabled'}>Refresh</button>` : ''}
-                                        <button class="btn small danger" data-delete="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Delete</button>
+                                        <button class="btn small" data-edit="${escapeHtml(skill.name)}" title="Edit name, description, and tags" ${hasCentral ? '' : 'disabled'}>Edit</button>
+                                        <button class="btn small primary" data-preview-skill="${escapeHtml(skill.name)}" title="Preview SKILL.md without making changes" ${hasCentral ? '' : 'disabled'}>Preview</button>
+                                        ${skill.source_url ? `<button class="btn small success" data-refresh-skill="${escapeHtml(skill.name)}" title="Re-download the latest version from GitHub: ${escapeHtml(skill.source_url)}" ${hasCentral ? '' : 'disabled'}>Refresh</button>` : ''}
+                                        <button class="btn small danger" data-delete="${escapeHtml(skill.name)}" title="Delete this skill from the Universal hub" ${hasCentral ? '' : 'disabled'}>Delete</button>
                                     </div>
                                 </td>
                             </tr>

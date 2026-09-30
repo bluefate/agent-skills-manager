@@ -508,6 +508,35 @@ textarea {
     color: var(--text);
 }
 
+.actions-note {
+    margin: 0 0 var(--gap);
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.actions-note strong {
+    color: var(--text);
+}
+
+.actions-note ul {
+    margin: 0.45rem 0 0;
+    padding-left: 1.1rem;
+}
+
+.actions-note li + li {
+    margin-top: 0.25rem;
+}
+
+.actions-note code {
+    color: var(--primary);
+}
+
 .skills-table td.actions-col {
     text-align: center;
     width: 1%;
