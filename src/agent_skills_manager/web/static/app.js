@@ -166,9 +166,9 @@ function renderSkills() {
             <table class="skills-table">
                 <thead>
                     <tr>
-                        <th>Name</th>
+                        <th class="skill-name-col">Name</th>
                         ${locations.map(location => `<th class="presence-col">${escapeHtml(location.name)}</th>`).join('')}
-                        <th>Actions</th>
+                        <th class="actions-col">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -182,7 +182,7 @@ function renderSkills() {
                         ` : '';
                         return `
                             <tr data-skill="${escapeHtml(skill.name)}">
-                                <td>
+                                <td class="skill-name-col">
                                     <strong>${escapeHtml(skill.name)}</strong>
                                     ${skill.tags.length ? `<div class="card-tags">${skill.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
                                 </td>
@@ -198,7 +198,7 @@ function renderSkills() {
                                         >
                                     </td>
                                 `).join('')}
-                                <td>
+                                <td class="actions-col">
                                     <div class="actions table-actions">
                                         <button class="btn small" data-edit="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Edit</button>
                                         <button class="btn small" data-preview-skill="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Preview</button>
@@ -459,7 +459,7 @@ function renderTargets() {
             <div class="card-meta">${escapeHtml(t.path)}</div>
             ${t.resolved_path ? `<div class="card-meta">-> ${escapeHtml(t.resolved_path)}</div>` : ''}
             <p class="target-status">${escapeHtml(statusDescriptions[t.state] || '')}</p>
-            <p>${t.skills.length} skill(s) visible here</p>
+            <p class="target-skill-count">${t.skills.length} skill(s) visible here</p>
             <div class="actions">
                 ${t.state === 'directory' || t.state === 'missing' ? `<button class="btn small primary" data-preview="${escapeHtml(t.id)}">${t.state === 'missing' ? 'Preview & Create Link' : 'Preview & Symlink'}</button>` : ''}
                 ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Link</button>` : ''}
