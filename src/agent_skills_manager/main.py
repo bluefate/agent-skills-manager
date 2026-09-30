@@ -9,11 +9,12 @@ import shutil
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from urllib.error import URLError
 from urllib.request import Request as UrlRequest, urlopen
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -26,6 +27,7 @@ from agent_skills_manager.models import (
     Project,
     RemoveSymlinkRequest,
     Skill,
+    SkillUrlImportRequest,
     SymlinkRequest,
     UndoRequest,
 )
@@ -36,6 +38,7 @@ from agent_skills_manager.services.skills import (
     read_skill,
     read_skill_content,
     rename_skill,
+    write_skill_content,
     write_skill_metadata,
 )
 from agent_skills_manager.services.targets import (
@@ -75,21 +78,119 @@ def _save_custom_targets(targets: list[AgentTarget], settings: Settings) -> None
     )
 
 
+def _skill_name_from_upload(filename: str, content: str) -> str:
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            match = re.search(r"(?m)^name:\s*[\"']?([^\"'\n#]+)", parts[1])
+            if match:
+                return match.group(1).strip()
+
+    stem = Path(filename).stem
+    if stem.upper() == "SKILL":
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded SKILL.md must include a frontmatter name.",
+        )
+    return stem
+
+
+def _validate_skill_name(name: str) -> str:
+    value = name.strip()
+    if not value or "/" in value or "\\" in value or value in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Invalid skill name")
+    return value
+
+
+def _github_raw_skill_url(url: str) -> tuple[str, str]:
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="Use an HTTPS GitHub URL")
+
+    if parsed.netloc == "raw.githubusercontent.com":
+        filename = Path(parsed.path).name
+        return url, filename
+
+    if parsed.netloc != "github.com":
+        raise HTTPException(status_code=400, detail="Use a github.com skill link")
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 5 or parts[2] != "blob":
+        raise HTTPException(
+            status_code=400,
+            detail="Use a GitHub file link like https://github.com/owner/repo/blob/branch/path/SKILL.md",
+        )
+
+    owner, repo, _, ref, *path_parts = parts
+    filename = path_parts[-1] if path_parts else ""
+    raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{'/'.join(path_parts)}"
+    return raw_url, filename
+
+
+def _fetch_skill_markdown(url: str) -> str:
+    request = UrlRequest(url, headers={"Accept": "text/plain"})
+    try:
+        with urlopen(request, timeout=5) as response:  # noqa: S310 - URL is validated as GitHub-only.
+            raw = response.read(512 * 1024 + 1)
+    except (OSError, URLError) as exc:
+        raise HTTPException(status_code=400, detail="Could not fetch skill from GitHub") from exc
+
+    if len(raw) > 512 * 1024:
+        raise HTTPException(status_code=400, detail="Skill file is too large")
+
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Skill file must be UTF-8 text") from exc
+
+
 def _default_targets_file(settings: Settings) -> Path:
     return settings.config_dir / "default-targets.json"
 
 
-def _load_enabled_default_targets(settings: Settings) -> set[str]:
-    defaults_file = _default_targets_file(settings)
-    if not defaults_file.exists():
-        return {t.id for t in get_default_targets()}
+def _removed_default_targets_file(settings: Settings) -> Path:
+    return settings.config_dir / "removed-default-targets.json"
+
+
+def _load_removed_default_targets(settings: Settings) -> set[str]:
+    removed_file = _removed_default_targets_file(settings)
+    if not removed_file.exists():
+        return set()
     try:
-        data = json.loads(defaults_file.read_text(encoding="utf-8"))
+        data = json.loads(removed_file.read_text(encoding="utf-8"))
         if isinstance(data, list):
             return set(data)
     except (json.JSONDecodeError, TypeError):
         pass
-    return {t.id for t in get_default_targets()}
+    return set()
+
+
+def _save_removed_default_targets(settings: Settings, removed_ids: set[str]) -> None:
+    removed_file = _removed_default_targets_file(settings)
+    settings.ensure_dirs()
+    removed_file.write_text(
+        json.dumps(sorted(removed_ids), indent=2),
+        encoding="utf-8",
+    )
+
+
+def _get_available_default_targets(settings: Settings) -> list[AgentTarget]:
+    removed_ids = _load_removed_default_targets(settings)
+    return [target for target in get_default_targets() if target.id not in removed_ids]
+
+
+def _load_enabled_default_targets(settings: Settings) -> set[str]:
+    defaults_file = _default_targets_file(settings)
+    available_ids = {t.id for t in _get_available_default_targets(settings)}
+    if not defaults_file.exists():
+        return available_ids
+    try:
+        data = json.loads(defaults_file.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return set(data) & available_ids
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return available_ids
 
 
 def _save_enabled_default_targets(settings: Settings, enabled_ids: set[str]) -> None:
@@ -102,7 +203,7 @@ def _save_enabled_default_targets(settings: Settings, enabled_ids: set[str]) -> 
 
 
 def _get_all_targets(settings: Settings) -> list[AgentTarget]:
-    defaults = get_default_targets()
+    defaults = _get_available_default_targets(settings)
     custom = _load_custom_targets(settings)
     enabled_defaults = _load_enabled_default_targets(settings)
     default_ids = {t.id for t in defaults}
@@ -222,13 +323,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/skills", response_model=Skill)
     async def create_or_update_skill(skill: Skill) -> Skill:
-        skill_path = settings.skills_dir / skill.name
+        skill_name = _validate_skill_name(skill.name)
+        skill_path = settings.skills_dir / skill_name
         return write_skill_metadata(
             skill_path,
-            name=skill.name,
+            name=skill_name,
             description=skill.description,
             tags=skill.tags,
         )
+
+    @app.post("/api/skills/upload", response_model=Skill)
+    async def upload_skill(file: UploadFile = File(...)) -> Skill:
+        filename = file.filename or ""
+        if not filename.lower().endswith(".md"):
+            raise HTTPException(status_code=400, detail="Upload a Markdown .md file")
+
+        raw = await file.read()
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Skill file must be UTF-8 text") from exc
+
+        skill_name = _validate_skill_name(_skill_name_from_upload(filename, content))
+        skill_path = settings.skills_dir / skill_name
+        return write_skill_content(skill_path, content)
+
+    @app.post("/api/skills/import-url", response_model=Skill)
+    async def import_skill_url(request: SkillUrlImportRequest) -> Skill:
+        raw_url, filename = _github_raw_skill_url(request.url)
+        if not filename.lower().endswith(".md"):
+            raise HTTPException(status_code=400, detail="GitHub link must point to a Markdown .md file")
+
+        content = await asyncio.to_thread(_fetch_skill_markdown, raw_url)
+        skill_name = _validate_skill_name(_skill_name_from_upload(filename, content))
+        skill_path = settings.skills_dir / skill_name
+        return write_skill_content(skill_path, content)
 
     @app.post("/api/skills/{skill_name}/rename", response_model=Skill)
     async def rename_existing_skill(skill_name: str, new_name: str) -> Skill:
@@ -253,14 +382,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/targets/defaults", response_model=list[AgentTarget])
     async def get_default_targets_list() -> list[AgentTarget]:
         enabled = _load_enabled_default_targets(settings)
-        targets = get_default_targets()
+        targets = _get_available_default_targets(settings)
         for target in targets:
             target.can_undo = load_symlink_history(settings.config_dir, target.id) is not None
         return targets
 
     @app.post("/api/targets/defaults")
     async def set_default_targets(enabled_ids: list[str]) -> dict[str, str]:
-        valid_ids = {t.id for t in get_default_targets()}
+        valid_ids = {t.id for t in _get_available_default_targets(settings)}
         if not set(enabled_ids).issubset(valid_ids):
             raise HTTPException(status_code=400, detail="Invalid default target ID")
         _save_enabled_default_targets(settings, set(enabled_ids))
@@ -270,7 +399,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def add_target(target: AgentTarget) -> AgentTarget:
         custom = _load_custom_targets(settings)
         existing = find_target_by_id(custom, target.id) or find_target_by_id(
-            get_default_targets(), target.id
+            _get_available_default_targets(settings), target.id
         )
         if existing:
             raise HTTPException(status_code=409, detail="Target already exists")
@@ -283,10 +412,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def delete_target(target_id: str = Query(..., description="Target ID")) -> dict[str, str]:
         custom = _load_custom_targets(settings)
         filtered = [t for t in custom if t.id != target_id]
-        if len(filtered) == len(custom):
-            raise HTTPException(status_code=404, detail="Custom target not found")
-        _save_custom_targets(filtered, settings)
-        return {"status": "ok", "message": "Target removed"}
+        if len(filtered) != len(custom):
+            _save_custom_targets(filtered, settings)
+            return {"status": "ok", "message": "Target removed"}
+
+        default_ids = {t.id for t in _get_available_default_targets(settings)}
+        if target_id in default_ids:
+            removed_ids = _load_removed_default_targets(settings)
+            removed_ids.add(target_id)
+            _save_removed_default_targets(settings, removed_ids)
+            enabled_ids = _load_enabled_default_targets(settings)
+            enabled_ids.discard(target_id)
+            _save_enabled_default_targets(settings, enabled_ids)
+            return {"status": "ok", "message": "Known agent location removed"}
+
+        raise HTTPException(status_code=404, detail="Target not found")
 
     @app.get("/api/targets/preview")
     async def preview_target(

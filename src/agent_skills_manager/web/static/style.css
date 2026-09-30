@@ -199,6 +199,13 @@ p {
     margin: 0;
 }
 
+.header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
 .hint {
     color: var(--text-muted);
     margin-top: 0;
@@ -817,10 +824,18 @@ textarea {
     margin: 0.75rem 0;
 }
 
+.default-target-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 .default-targets-list .checkbox-row {
     display: grid;
     grid-template-columns: auto minmax(8rem, 0.35fr) minmax(0, 1fr);
     align-items: center;
+    min-width: 0;
     margin-bottom: 0;
     padding: 0.5rem 0.75rem;
     background: var(--bg);
@@ -839,8 +854,16 @@ textarea {
 }
 
 @media (max-width: 560px) {
+    .default-target-row {
+        grid-template-columns: 1fr;
+    }
+
     .default-targets-list .checkbox-row {
         grid-template-columns: auto minmax(5rem, auto) minmax(0, 1fr);
+    }
+
+    .default-target-row .btn {
+        justify-content: center;
     }
 }
 

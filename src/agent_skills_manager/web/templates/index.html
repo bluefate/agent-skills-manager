@@ -43,10 +43,15 @@
         <section id="skills" class="panel active">
             <div class="panel-header">
                 <h2>Skill Library</h2>
-                <button id="btn-add-skill" class="btn primary" title="Create a new skill in the central hub">Add Skill</button>
+                <div class="header-actions">
+                    <input type="file" id="skill-upload-input" accept=".md,text/markdown,text/plain" hidden>
+                    <button id="btn-import-skill-url" class="btn" title="Import a Markdown skill from GitHub">Import from GitHub</button>
+                    <button id="btn-upload-skill" class="btn" title="Import a SKILL.md file into the central hub">Upload Skill</button>
+                    <button id="btn-add-skill" class="btn primary" title="Create a new skill in the central hub">Add Skill</button>
+                </div>
             </div>
             <div class="info-box">
-                <strong>Add Skill</strong> creates a new skill folder and its <code>SKILL.md</code> metadata file in <code>~/.agents/skills/</code>. Changes here are reflected in every symlinked agent directory.
+                <strong>Add Skill</strong> creates a new skill folder and its <code>SKILL.md</code> metadata file in <code>~/.agents/skills/</code>. <strong>Upload Skill</strong> imports an existing Markdown skill file into the hub. <strong>Import from GitHub</strong> fetches a linked Markdown skill file. Changes here are reflected in every symlinked agent directory.
                 <strong>After adding or editing a skill, restart your agent/editor so it reloads its skill list.</strong>
             </div>
             <div class="capability-grid" aria-label="Skill Library capabilities">
