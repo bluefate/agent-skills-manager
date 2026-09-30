@@ -1,7 +1,30 @@
 const API = {
+    async _errorMessage(res) {
+        const text = await res.text();
+        if (!text) {
+            return `Request failed (${res.status})`;
+        }
+        try {
+            const payload = JSON.parse(text);
+            if (typeof payload?.detail === 'string' && payload.detail.trim()) {
+                return payload.detail.trim();
+            }
+            if (Array.isArray(payload?.detail) && payload.detail.length) {
+                return payload.detail
+                    .map(item => (typeof item?.msg === 'string' ? item.msg : JSON.stringify(item)))
+                    .join(' ');
+            }
+            if (typeof payload?.message === 'string' && payload.message.trim()) {
+                return payload.message.trim();
+            }
+        } catch {
+            // Fall through to plain text.
+        }
+        return text.trim() || `Request failed (${res.status})`;
+    },
     async get(path) {
         const res = await fetch(path);
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await this._errorMessage(res));
         return res.json();
     },
     async post(path, body) {
@@ -10,12 +33,12 @@ const API = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await this._errorMessage(res));
         return res.json();
     },
     async delete(path) {
         const res = await fetch(path, { method: 'DELETE' });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await this._errorMessage(res));
         return res.json();
     },
     async upload(path, formData) {
@@ -23,7 +46,7 @@ const API = {
             method: 'POST',
             body: formData,
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await this._errorMessage(res));
         return res.json();
     }
 };
@@ -88,10 +111,15 @@ async function checkForUpdate() {
 
 checkForUpdate();
 
+let toastTimer = null;
+
 function showToast(message, type = 'success') {
     toast.textContent = message;
     toast.className = `toast ${type}`;
-    setTimeout(() => toast.classList.add('hidden'), 4000);
+    if (toastTimer) {
+        clearTimeout(toastTimer);
+    }
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 5000);
 }
 
 function openModal(title, body, actions = []) {
@@ -159,6 +187,19 @@ function renderSkills() {
         return;
     }
 
+    const originBadge = (skill) => {
+        if (skill.added_via === 'github' || skill.source_url) {
+            return `<span class="badge origin-badge github-badge" title="${escapeHtml(skill.source_url || 'Imported from GitHub')}">GitHub</span>`;
+        }
+        if (skill.added_via === 'upload') {
+            return `<span class="badge origin-badge upload-badge" title="Uploaded through this app">Uploaded</span>`;
+        }
+        if (skill.added_via === 'created') {
+            return `<span class="badge origin-badge created-badge" title="Created through this app">Created</span>`;
+        }
+        return '';
+    };
+
     const locations = rows[0].locations;
     const tableColumnCount = locations.length + 2;
     list.innerHTML = `
@@ -166,24 +207,31 @@ function renderSkills() {
             <table class="skills-table">
                 <thead>
                     <tr>
-                        <th>Name</th>
+                        <th class="skill-name-col">Name</th>
                         ${locations.map(location => `<th class="presence-col">${escapeHtml(location.name)}</th>`).join('')}
-                        <th>Actions</th>
+                        <th class="actions-col">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${rows.map(skill => {
                         const central = skill.locations.find(location => location.location_id === 'central');
                         const hasCentral = central?.present;
-                        const descriptionRow = skill.description ? `
+                        const sourceLink = skill.source_url
+                            ? `<div class="skill-source-link">GitHub: <a href="${escapeHtml(skill.source_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(skill.source_url)}</a></div>`
+                            : '';
+                        const descriptionRow = (skill.description || skill.source_url) ? `
                             <tr class="skill-description-row">
-                                <td colspan="${tableColumnCount}">${escapeHtml(skill.description)}</td>
+                                <td colspan="${tableColumnCount}">
+                                    ${skill.description ? `<div class="skill-description-text">${escapeHtml(skill.description)}</div>` : ''}
+                                    ${sourceLink}
+                                </td>
                             </tr>
                         ` : '';
                         return `
                             <tr data-skill="${escapeHtml(skill.name)}">
-                                <td>
+                                <td class="skill-name-col">
                                     <strong>${escapeHtml(skill.name)}</strong>
+                                    ${originBadge(skill)}
                                     ${skill.tags.length ? `<div class="card-tags">${skill.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
                                 </td>
                                 ${skill.locations.map(location => `
@@ -198,11 +246,12 @@ function renderSkills() {
                                         >
                                     </td>
                                 `).join('')}
-                                <td>
+                                <td class="actions-col">
                                     <div class="actions table-actions">
-                                        <button class="btn small" data-edit="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Edit</button>
-                                        <button class="btn small" data-preview-skill="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Preview</button>
-                                        <button class="btn small danger" data-delete="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Delete</button>
+                                        <button class="btn small" data-edit="${escapeHtml(skill.name)}" title="Edit name, description, and tags" ${hasCentral ? '' : 'disabled'}>Edit</button>
+                                        <button class="btn small primary" data-preview-skill="${escapeHtml(skill.name)}" title="Preview SKILL.md without making changes" ${hasCentral ? '' : 'disabled'}>Preview</button>
+                                        ${skill.source_url ? `<button class="btn small success" data-refresh-skill="${escapeHtml(skill.name)}" title="Re-download the latest version from GitHub: ${escapeHtml(skill.source_url)}" ${hasCentral ? '' : 'disabled'}>Refresh</button>` : ''}
+                                        <button class="btn small danger" data-delete="${escapeHtml(skill.name)}" title="Delete this skill from the Universal hub" ${hasCentral ? '' : 'disabled'}>Delete</button>
                                     </div>
                                 </td>
                             </tr>
@@ -220,6 +269,9 @@ function renderSkills() {
     qsa('[data-preview-skill]', list).forEach(btn => {
         btn.addEventListener('click', () => previewSkill(btn.dataset.previewSkill));
     });
+    qsa('[data-refresh-skill]', list).forEach(btn => {
+        btn.addEventListener('click', () => refreshSkillFromGithub(btn.dataset.refreshSkill));
+    });
     qsa('[data-delete]', list).forEach(btn => {
         btn.addEventListener('click', () => deleteSkill(btn.dataset.delete));
     });
@@ -232,14 +284,25 @@ async function setSkillPresence(input) {
     const skillName = input.dataset.skillPresence;
     const locationId = input.dataset.locationId;
     const present = input.checked;
-    const location = state.skillPresence
-        .find(skill => skill.name === skillName)
-        ?.locations.find(item => item.location_id === locationId);
+    const skill = state.skillPresence.find(item => item.name === skillName);
+    const location = skill?.locations.find(item => item.location_id === locationId);
     const locationName = location?.name || 'this location';
+    const isUniversal = locationId === 'central';
+    const remainingPresent = (skill?.locations || []).filter(
+        item => item.present && item.location_id !== locationId
+    ).length;
 
-    if (!present && !confirm(`Remove "${skillName}" from ${locationName}?`)) {
-        input.checked = true;
-        return;
+    if (!present) {
+        let warning = isUniversal
+            ? `Remove "${skillName}" from ${locationName}?\n\nThis deletes the skill from the Universal hub.`
+            : `Remove "${skillName}" from ${locationName}?`;
+        if (remainingPresent === 0) {
+            warning = `Delete "${skillName}"?\n\nThis is the last copy. Unchecking ${locationName} removes the skill completely and it will disappear from the Skill Library.`;
+        }
+        if (!confirm(warning)) {
+            input.checked = true;
+            return;
+        }
     }
 
     input.disabled = true;
@@ -250,7 +313,12 @@ async function setSkillPresence(input) {
             present,
         });
         await loadSkills();
-        showToast(result.message);
+        const action = !present && remainingPresent === 0
+            ? `Deleted "${skillName}".`
+            : present
+                ? `Copied "${skillName}" to ${locationName}.`
+                : `Removed "${skillName}" from ${locationName}.`;
+        showToast(`${action} Restart that agent/editor so the change takes effect.`);
     } catch (err) {
         input.checked = !present;
         input.disabled = false;
@@ -286,15 +354,15 @@ function skillForm(skill = null) {
     form.innerHTML = `
         <div class="form-group">
             <label>Name</label>
-            <input type="text" name="name" value="${skill ? escapeHtml(skill.name) : ''}" required>
+            <input type="text" name="name" value="${skill ? escapeHtml(skill.name) : ''}" placeholder="e.g. frontend-design" required>
         </div>
         <div class="form-group">
             <label>Description</label>
-            <textarea name="description">${skill ? escapeHtml(skill.description) : ''}</textarea>
+            <textarea name="description" placeholder="e.g. Guidance for distinctive UI work and visual direction">${skill ? escapeHtml(skill.description) : ''}</textarea>
         </div>
         <div class="form-group">
             <label>Tags (comma separated)</label>
-            <input type="text" name="tags" value="${skill ? escapeHtml(skill.tags.join(', ')) : ''}">
+            <input type="text" name="tags" value="${skill ? escapeHtml(skill.tags.join(', ')) : ''}" placeholder="e.g. design, ui, frontend">
         </div>
     `;
     return form;
@@ -341,9 +409,9 @@ qs('#btn-import-skill-url').addEventListener('click', () => {
     form.innerHTML = `
         <div class="form-group">
             <label>GitHub skill link</label>
-            <input type="text" name="url" placeholder="https://github.com/owner/repo/blob/main/path/SKILL.md" required>
+            <input type="text" name="url" placeholder="e.g. https://github.com/owner/repo/blob/main/path/SKILL.md" required>
         </div>
-        <p class="modal-help">Paste a GitHub Markdown file link or raw GitHub URL. The skill name comes from frontmatter, or from the filename when possible.</p>
+        <p class="modal-help">Paste a GitHub Markdown file link (the browser address for SKILL.md). Re-importing the same skill overwrites the local copy and keeps the GitHub link for Refresh.</p>
     `;
 
     openModal('Import Skill from GitHub', form, [
@@ -412,6 +480,25 @@ async function deleteSkill(name) {
     showToast('Skill deleted. Restart your agent/editor if it was loaded.');
 }
 
+async function refreshSkillFromGithub(name) {
+    const skill = state.skillPresence.find(item => item.name === name);
+    const sourceUrl = skill?.source_url;
+    if (!sourceUrl) {
+        showToast('No GitHub source saved for this skill.', 'error');
+        return;
+    }
+    if (!confirm(`Refresh "${name}" from GitHub?\n\nThis overwrites the local SKILL.md with the latest file from:\n${sourceUrl}`)) {
+        return;
+    }
+    try {
+        await API.post(`/api/skills/${encodeURIComponent(name)}/refresh`, {});
+        await loadSkills();
+        showToast(`Refreshed "${name}" from GitHub. Restart your agent/editor to pick it up.`);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
 // Targets
 async function loadTargets() {
     const [targets, defaults] = await Promise.all([
@@ -430,6 +517,7 @@ async function loadTargets() {
 async function saveDefaultTargets(enabledIds) {
     await API.post('/api/targets/defaults', enabledIds);
     await loadTargets();
+    await loadSkills();
     showToast('Known agent locations updated');
 }
 
@@ -459,7 +547,7 @@ function renderTargets() {
             <div class="card-meta">${escapeHtml(t.path)}</div>
             ${t.resolved_path ? `<div class="card-meta">-> ${escapeHtml(t.resolved_path)}</div>` : ''}
             <p class="target-status">${escapeHtml(statusDescriptions[t.state] || '')}</p>
-            <p>${t.skills.length} skill(s) visible here</p>
+            <p class="target-skill-count">${t.skills.length} skill(s) visible here</p>
             <div class="actions">
                 ${t.state === 'directory' || t.state === 'missing' ? `<button class="btn small primary" data-preview="${escapeHtml(t.id)}">${t.state === 'missing' ? 'Preview & Create Link' : 'Preview & Symlink'}</button>` : ''}
                 ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Link</button>` : ''}
@@ -541,6 +629,7 @@ async function removeDefaultTarget(id) {
     }
     await API.delete(`/api/targets?target_id=${encodeURIComponent(id)}`);
     await loadTargets();
+    await loadSkills();
     showToast('Known agent location removed');
 }
 
@@ -608,6 +697,7 @@ async function previewTarget(id, conflictStrategy = 'rename') {
                 });
                 closeModal();
                 await loadTargets();
+                await loadSkills();
                 showToast(
                     result.status === 'ok'
                         ? `${result.message} Restart that agent/editor to use the hub.`
@@ -644,6 +734,7 @@ async function removeSymlink(id) {
             });
             closeModal();
             await loadTargets();
+            await loadSkills();
             showToast(
                 result.status === 'ok'
                     ? `${result.message} Restart that agent/editor so it reloads its own directory.`
@@ -662,6 +753,7 @@ async function undoSymlink(id) {
     }
     const result = await API.post('/api/targets/undo-symlink', { target_id: id });
     await loadTargets();
+    await loadSkills();
     showToast(
         result.status === 'ok'
             ? `${result.message} Restart that agent/editor to use its own directory again.`
@@ -689,11 +781,11 @@ qs('#btn-add-target').addEventListener('click', () => {
         </div>
         <div class="form-group">
             <label>Agent Name</label>
-            <input type="text" name="name" placeholder="My Editor" required>
+            <input type="text" name="name" placeholder="e.g. My Editor" required>
         </div>
         <div class="form-group">
             <label>Path</label>
-            <input type="text" name="path" placeholder="~/.myeditor/skills" required>
+            <input type="text" name="path" placeholder="e.g. ~/.myeditor/skills" required>
         </div>
     `;
 
@@ -713,6 +805,7 @@ qs('#btn-add-target').addEventListener('click', () => {
             await API.post('/api/targets', { name: data.name, path: data.path, id: data.path, state: 'missing' });
             closeModal();
             await loadTargets();
+            await loadSkills();
             showToast('Agent location added');
         }),
     ]);
@@ -722,6 +815,7 @@ async function deleteTarget(id) {
     if (!confirm('Remove this custom agent location from the app?\n\nThis does not delete files or remove symlinks on your computer.')) return;
     await API.delete(`/api/targets?target_id=${encodeURIComponent(id)}`);
     await loadTargets();
+    await loadSkills();
     showToast('Agent location deleted');
 }
 

@@ -36,14 +36,17 @@ from agent_skills_manager.models import (
 )
 from agent_skills_manager.services.projects import scan_project
 from agent_skills_manager.services.skills import (
+    clear_skill_origin,
     copy_skill,
     delete_skill,
     list_skills,
     read_skill,
     read_skill_content,
+    read_skill_origin,
     rename_skill,
     write_skill_content,
     write_skill_metadata,
+    write_skill_origin,
 )
 from agent_skills_manager.services.targets import (
     add_custom_target,
@@ -107,26 +110,58 @@ def _validate_skill_name(name: str) -> str:
 
 
 def _github_raw_skill_url(url: str) -> tuple[str, str]:
-    parsed = urlparse(url)
+    cleaned = url.strip()
+    if cleaned.startswith("github.com/") or cleaned.startswith("www.github.com/"):
+        cleaned = f"https://{cleaned}"
+    if cleaned.startswith("http://"):
+        cleaned = "https://" + cleaned[len("http://") :]
+
+    parsed = urlparse(cleaned)
     if parsed.scheme != "https":
-        raise HTTPException(status_code=400, detail="Use an HTTPS GitHub URL")
-
-    if parsed.netloc == "raw.githubusercontent.com":
-        filename = Path(parsed.path).name
-        return url, filename
-
-    if parsed.netloc != "github.com":
-        raise HTTPException(status_code=400, detail="Use a github.com skill link")
-
-    parts = [part for part in parsed.path.split("/") if part]
-    if len(parts) < 5 or parts[2] != "blob":
         raise HTTPException(
             status_code=400,
-            detail="Use a GitHub file link like https://github.com/owner/repo/blob/branch/path/SKILL.md",
+            detail="Paste a full HTTPS GitHub link to a Markdown file (SKILL.md).",
+        )
+
+    host = parsed.netloc.lower()
+    if host == "raw.githubusercontent.com":
+        filename = Path(parsed.path).name
+        if not filename.lower().endswith(".md"):
+            raise HTTPException(
+                status_code=400,
+                detail="That GitHub link must point to a Markdown file ending in .md.",
+            )
+        return cleaned.split("?", 1)[0], filename
+
+    if host not in {"github.com", "www.github.com"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Only github.com links are supported. Open the skill file on GitHub and copy its address.",
+        )
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 5 or parts[2] not in {"blob", "raw"}:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "That doesn't look like a link to a specific file. "
+                "Open SKILL.md on GitHub, then copy the browser address. "
+                "It should look like https://github.com/owner/repo/blob/main/path/SKILL.md"
+            ),
         )
 
     owner, repo, _, ref, *path_parts = parts
-    filename = path_parts[-1] if path_parts else ""
+    if not path_parts:
+        raise HTTPException(
+            status_code=400,
+            detail="That GitHub link is missing the path to the Markdown file.",
+        )
+    filename = path_parts[-1]
+    if not filename.lower().endswith(".md"):
+        raise HTTPException(
+            status_code=400,
+            detail="That GitHub link must point to a Markdown file ending in .md.",
+        )
     raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{'/'.join(path_parts)}"
     return raw_url, filename
 
@@ -137,19 +172,99 @@ def _fetch_skill_markdown(url: str) -> str:
         with urlopen(request, timeout=5) as response:  # noqa: S310 - URL is validated as GitHub-only.
             raw = response.read(512 * 1024 + 1)
     except (OSError, URLError) as exc:
-        raise HTTPException(status_code=400, detail="Could not fetch skill from GitHub") from exc
+        raise HTTPException(
+            status_code=400,
+            detail="Couldn't download that skill from GitHub. Check the link and try again.",
+        ) from exc
 
     if len(raw) > 512 * 1024:
-        raise HTTPException(status_code=400, detail="Skill file is too large")
+        raise HTTPException(status_code=400, detail="That skill file is too large to import (max 512 KB).")
 
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise HTTPException(status_code=400, detail="Skill file must be UTF-8 text") from exc
+        raise HTTPException(
+            status_code=400,
+            detail="That skill file isn't valid UTF-8 text. Import a Markdown .md file instead.",
+        ) from exc
 
 
 def _default_targets_file(settings: Settings) -> Path:
     return settings.config_dir / "default-targets.json"
+
+
+def _github_sources_file(settings: Settings) -> Path:
+    return settings.config_dir / "github-sources.json"
+
+
+def _load_github_sources(settings: Settings) -> dict[str, str]:
+    sources_file = _github_sources_file(settings)
+    if not sources_file.exists():
+        return {}
+    try:
+        data = json.loads(sources_file.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return {
+                str(name): str(url)
+                for name, url in data.items()
+                if isinstance(name, str) and isinstance(url, str) and name and url
+            }
+    except (json.JSONDecodeError, TypeError, OSError):
+        pass
+    return {}
+
+
+def _save_github_sources(settings: Settings, sources: dict[str, str]) -> None:
+    sources_file = _github_sources_file(settings)
+    settings.ensure_dirs()
+    sources_file.write_text(json.dumps(sources, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _set_skill_origin(settings: Settings, skill_name: str, origin: str, url: str = "") -> None:
+    write_skill_origin(settings.skills_dir / skill_name, origin, url=url)
+    sources = _load_github_sources(settings)
+    if origin == "github" and url.strip():
+        sources[skill_name] = url.strip()
+        _save_github_sources(settings, sources)
+        return
+    if skill_name in sources:
+        del sources[skill_name]
+        _save_github_sources(settings, sources)
+
+
+def _rename_skill_origin(settings: Settings, old_name: str, new_name: str) -> None:
+    # Sidecar file moves with the skill directory on rename; keep the registry in sync.
+    sources = _load_github_sources(settings)
+    url = sources.pop(old_name, None)
+    if url is None:
+        url = read_skill_origin(settings.skills_dir / new_name).get("url", "")
+    if url:
+        sources[new_name] = url
+    _save_github_sources(settings, sources)
+
+
+def _clear_skill_origin(settings: Settings, skill_name: str) -> None:
+    clear_skill_origin(settings.skills_dir / skill_name)
+    sources = _load_github_sources(settings)
+    if skill_name not in sources:
+        return
+    del sources[skill_name]
+    _save_github_sources(settings, sources)
+
+
+def _origin_for_skill(settings: Settings, skill_name: str) -> tuple[str, str]:
+    origin_info = read_skill_origin(settings.skills_dir / skill_name)
+    added_via = origin_info.get("origin", "")
+    source_url = origin_info.get("url", "")
+    if not source_url:
+        source_url = _load_github_sources(settings).get(skill_name, "")
+    if source_url and not added_via:
+        added_via = "github"
+    return added_via, source_url
+
+
+def _github_source_for_skill(settings: Settings, skill_name: str) -> str:
+    return _origin_for_skill(settings, skill_name)[1]
 
 
 def _removed_default_targets_file(settings: Settings) -> Path:
@@ -245,7 +360,7 @@ def _target_presence_read_only(target: AgentTarget) -> tuple[bool, str]:
 
 
 def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
-    hub_skills = list_skills(settings.skills_dir, source="Central Hub")
+    hub_skills = list_skills(settings.skills_dir, source="Universal")
     targets = _get_all_targets(settings)
     skill_map: dict[str, dict[str, Skill]] = {}
 
@@ -262,7 +377,7 @@ def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
         locations = [
             SkillLocationPresence(
                 location_id="central",
-                name="Central Hub",
+                name="Universal",
                 path=settings.skills_dir / skill_name,
                 present="central" in skill_map[skill_name],
             )
@@ -281,11 +396,18 @@ def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
                 )
             )
 
+        added_via = ""
+        source_url = ""
+        if "central" in skill_map[skill_name]:
+            added_via, source_url = _origin_for_skill(settings, skill_name)
+
         rows.append(
             SkillPresence(
                 name=skill_name,
                 description=description,
                 tags=tags,
+                added_via=added_via,
+                source_url=source_url,
                 locations=locations,
             )
         )
@@ -453,12 +575,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def create_or_update_skill(skill: Skill) -> Skill:
         skill_name = _validate_skill_name(skill.name)
         skill_path = settings.skills_dir / skill_name
-        return write_skill_metadata(
+        is_new = not skill_path.exists()
+        result = write_skill_metadata(
             skill_path,
             name=skill_name,
             description=skill.description,
             tags=skill.tags,
         )
+        if is_new:
+            _set_skill_origin(settings, skill_name, "created")
+        return result
 
     @app.post("/api/skills/upload", response_model=Skill)
     async def upload_skill(file: UploadFile = File(...)) -> Skill:
@@ -474,18 +600,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         skill_name = _validate_skill_name(_skill_name_from_upload(filename, content))
         skill_path = settings.skills_dir / skill_name
-        return write_skill_content(skill_path, content)
+        skill = write_skill_content(skill_path, content)
+        _set_skill_origin(settings, skill_name, "upload")
+        return skill
 
     @app.post("/api/skills/import-url", response_model=Skill)
     async def import_skill_url(request: SkillUrlImportRequest) -> Skill:
         raw_url, filename = _github_raw_skill_url(request.url)
         if not filename.lower().endswith(".md"):
-            raise HTTPException(status_code=400, detail="GitHub link must point to a Markdown .md file")
+            raise HTTPException(
+                status_code=400,
+                detail="That GitHub link must point to a Markdown file ending in .md.",
+            )
 
         content = await asyncio.to_thread(_fetch_skill_markdown, raw_url)
         skill_name = _validate_skill_name(_skill_name_from_upload(filename, content))
         skill_path = settings.skills_dir / skill_name
-        return write_skill_content(skill_path, content)
+        skill = write_skill_content(skill_path, content)
+        _set_skill_origin(settings, skill_name, "github", url=request.url.strip())
+        return skill
+
+    @app.post("/api/skills/{skill_name}/refresh", response_model=Skill)
+    async def refresh_skill_from_github(skill_name: str) -> Skill:
+        skill_name = _validate_skill_name(skill_name)
+        skill_path = settings.skills_dir / skill_name
+        if not skill_path.exists():
+            raise HTTPException(status_code=404, detail="Skill not found")
+
+        source_url = _github_source_for_skill(settings, skill_name)
+        if not source_url:
+            raise HTTPException(
+                status_code=400,
+                detail="This skill doesn't have a saved GitHub link to refresh from. Import it from GitHub once to enable Refresh.",
+            )
+
+        raw_url, filename = _github_raw_skill_url(source_url)
+        if not filename.lower().endswith(".md"):
+            raise HTTPException(
+                status_code=400,
+                detail="That GitHub link must point to a Markdown file ending in .md.",
+            )
+
+        content = await asyncio.to_thread(_fetch_skill_markdown, raw_url)
+        refreshed_name = _validate_skill_name(_skill_name_from_upload(filename, content))
+        if refreshed_name != skill_name:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"GitHub skill name is now '{refreshed_name}', which differs from '{skill_name}'. "
+                    "Import it as a new skill instead."
+                ),
+            )
+
+        skill = write_skill_content(skill_path, content)
+        _set_skill_origin(settings, skill_name, "github", url=source_url)
+        return skill
 
     @app.post("/api/skills/{skill_name}/rename", response_model=Skill)
     async def rename_existing_skill(skill_name: str, new_name: str) -> Skill:
@@ -493,6 +662,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not old_path.exists():
             raise HTTPException(status_code=404, detail="Skill not found")
         new_path = rename_skill(old_path, new_name)
+        _rename_skill_origin(settings, skill_name, new_name)
         return read_skill(new_path) or Skill(name=new_name, path=new_path, source="central")
 
     @app.delete("/api/skills/{skill_name}")
@@ -501,6 +671,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not skill_path.exists():
             raise HTTPException(status_code=404, detail="Skill not found")
         delete_skill(skill_path)
+        _clear_skill_origin(settings, skill_name)
         return {"status": "ok", "message": f"Skill '{skill_name}' deleted"}
 
     @app.get("/api/targets", response_model=list[AgentTarget])

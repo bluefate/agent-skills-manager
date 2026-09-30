@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,64 @@ from agent_skills_manager.models import MoveOperation, MovePlan, Skill
 
 
 SKILL_FILE_NAME = "SKILL.md"
+ORIGIN_FILE_NAME = ".asm-source.json"
+KNOWN_ORIGINS = frozenset({"github", "upload", "created"})
+
+
+def read_skill_origin(skill_path: Path) -> dict[str, str]:
+    """Return saved app origin metadata for a skill directory."""
+    source_file = skill_path / ORIGIN_FILE_NAME
+    if not source_file.is_file():
+        return {"origin": "", "url": ""}
+    try:
+        data = json.loads(source_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {"origin": "", "url": ""}
+    if not isinstance(data, dict):
+        return {"origin": "", "url": ""}
+
+    url = data.get("url")
+    url_value = url.strip() if isinstance(url, str) else ""
+    origin = data.get("origin")
+    origin_value = origin.strip() if isinstance(origin, str) else ""
+    if origin_value not in KNOWN_ORIGINS:
+        origin_value = "github" if url_value else ""
+    return {"origin": origin_value, "url": url_value}
+
+
+def write_skill_origin(skill_path: Path, origin: str, url: str = "") -> None:
+    """Persist how this skill was added through the app."""
+    if origin not in KNOWN_ORIGINS:
+        raise ValueError(f"Unsupported skill origin: {origin}")
+    skill_path.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, str] = {"origin": origin}
+    cleaned_url = url.strip()
+    if cleaned_url:
+        payload["url"] = cleaned_url
+    source_file = skill_path / ORIGIN_FILE_NAME
+    source_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def clear_skill_origin(skill_path: Path) -> None:
+    """Remove saved app origin metadata from a skill directory."""
+    source_file = skill_path / ORIGIN_FILE_NAME
+    if source_file.exists():
+        source_file.unlink(missing_ok=True)
+
+
+def read_github_source_url(skill_path: Path) -> str:
+    """Return a saved GitHub import URL for a skill directory, if present."""
+    return read_skill_origin(skill_path).get("url", "")
+
+
+def write_github_source_url(skill_path: Path, url: str) -> None:
+    """Persist the GitHub import URL beside the skill so Refresh stays available."""
+    write_skill_origin(skill_path, "github", url=url)
+
+
+def clear_github_source_url(skill_path: Path) -> None:
+    """Remove a saved GitHub import URL from a skill directory."""
+    clear_skill_origin(skill_path)
 
 
 def _parse_frontmatter(content: str) -> dict[str, Any]:

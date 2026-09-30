@@ -197,6 +197,9 @@ p {
 
 .panel-header h2 {
     margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.3;
 }
 
 .header-actions {
@@ -295,6 +298,24 @@ input[type="text"], textarea {
     font: inherit;
 }
 
+input[type="text"]::placeholder,
+textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 0.65;
+}
+
+input[type="text"]::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+    color: var(--text-muted);
+    opacity: 0.65;
+}
+
+input[type="text"]::-moz-placeholder,
+textarea::-moz-placeholder {
+    color: var(--text-muted);
+    opacity: 0.65;
+}
+
 input[type="text"]:focus, textarea:focus {
     outline: none;
     border-color: var(--primary);
@@ -336,18 +357,19 @@ textarea {
 
 .targets-grid .card {
     min-width: 0;
-    padding: 0.75rem;
+    padding: 0.875rem;
     font-size: 0.875rem;
 }
 
 .targets-grid .card-title {
-    margin-bottom: 0.35rem;
-    font-size: 0.95rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
 }
 
 .targets-grid .card-meta {
-    margin-bottom: 0.45rem;
-    font-size: 0.75rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.8125rem;
 }
 
 .targets-grid .badge {
@@ -357,6 +379,11 @@ textarea {
 
 .targets-grid p {
     margin: 0 0 0.4rem;
+    font-size: 0.8125rem;
+}
+
+.targets-grid .target-skill-count {
+    color: var(--text);
 }
 
 .target-status {
@@ -366,23 +393,24 @@ textarea {
 }
 
 .targets-grid .actions {
-    margin-top: 0.5rem;
+    margin-top: 0.65rem;
 }
 
 .location-notes {
     margin-top: var(--gap);
-    padding: 0.8rem 1rem;
+    padding: 0.875rem 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface-light);
     color: var(--text-muted);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
 }
 
 .location-notes h3 {
     margin: 0 0 0.4rem;
     color: var(--text);
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
 }
 
 .location-notes ul {
@@ -409,14 +437,15 @@ textarea {
 .list-section-header h3 {
     flex: none;
     margin: 0;
-    font-size: 1rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
 }
 
 .list-section-header p {
     max-width: 46rem;
     margin: 0;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     text-align: right;
 }
 
@@ -450,7 +479,98 @@ textarea {
     background: var(--surface-light);
     color: var(--text);
     font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
     text-transform: uppercase;
+}
+
+.skills-table td.skill-name-col {
+    text-align: left;
+}
+
+.skills-table td.skill-name-col strong {
+    margin-right: 0.4rem;
+}
+
+.github-badge {
+    background: var(--surface-light);
+    color: var(--primary);
+    vertical-align: middle;
+}
+
+.upload-badge,
+.created-badge {
+    background: var(--surface-light);
+    color: var(--text-muted);
+    vertical-align: middle;
+}
+
+.origin-badge {
+    margin-left: 0.15rem;
+}
+
+.origin-note {
+    margin: 0 0 var(--gap);
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+    border-radius: var(--radius);
+    background: var(--surface-light);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.origin-note strong {
+    color: var(--text);
+}
+
+.actions-note {
+    margin: 0 0 var(--gap);
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.actions-note strong {
+    color: var(--text);
+}
+
+.actions-note ul {
+    margin: 0.45rem 0 0;
+    padding-left: 1.1rem;
+}
+
+.actions-note li + li {
+    margin-top: 0.25rem;
+}
+
+.actions-note code {
+    color: var(--primary);
+}
+
+.skills-table td.actions-col {
+    text-align: center;
+    width: 1%;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.skills-table td.actions-col .table-actions {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    margin-top: 0;
+    width: max-content;
 }
 
 .skills-table td strong {
@@ -462,6 +582,24 @@ textarea {
     color: var(--text-muted);
     font-size: 0.75rem;
     line-height: 1.4;
+}
+
+.skills-table .skill-description-text + .skill-source-link {
+    margin-top: 0.3rem;
+}
+
+.skills-table .skill-source-link {
+    overflow-wrap: anywhere;
+}
+
+.skills-table .skill-source-link a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.skills-table .skill-source-link a:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
 }
 
 .skills-table tr:has(+ .skill-description-row) td {
@@ -489,14 +627,18 @@ textarea {
     white-space: nowrap;
 }
 
+.skills-table th.actions-col {
+    width: 1%;
+    white-space: nowrap;
+}
+
+#skill-filter {
+    margin-top: var(--gap);
+}
+
 .presence-col input[type="checkbox"] {
     width: 0.9rem;
     height: 0.9rem;
-}
-
-.table-actions {
-    margin-top: 0;
-    flex-wrap: nowrap;
 }
 
 .muted {
@@ -778,15 +920,21 @@ textarea {
 
 .toast {
     position: fixed;
-    bottom: 1rem;
-    right: 1rem;
+    left: 50%;
+    bottom: 1.25rem;
+    transform: translateX(-50%);
+    width: min(52rem, calc(100vw - 2rem));
     background: var(--surface);
     border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
     color: var(--text);
-    padding: 0.75rem 1rem;
+    padding: 1rem 1.25rem;
     border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.28);
     z-index: 101;
-    max-width: 360px;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    text-align: left;
 }
 
 .toast.hidden {
@@ -794,11 +942,13 @@ textarea {
 }
 
 .toast.error {
-    border-color: var(--danger);
+    border-color: var(--border);
+    border-left-color: var(--danger);
 }
 
 .toast.success {
-    border-color: var(--success);
+    border-color: var(--border);
+    border-left-color: var(--success);
 }
 
 .checkbox-row {
@@ -821,14 +971,11 @@ textarea {
     border: 1px solid var(--border);
     border-left: 4px solid var(--primary);
     border-radius: var(--radius);
-    padding: 0.75rem 1rem;
+    padding: 0.875rem 1rem;
     margin-bottom: var(--gap);
     color: var(--text-muted);
-    font-size: 0.95rem;
-}
-
-#targets .info-box {
     font-size: 0.875rem;
+    line-height: 1.55;
 }
 
 .info-box code {
@@ -839,9 +986,25 @@ textarea {
     color: var(--text);
 }
 
+.restart-note {
+    margin: 0 0 var(--gap);
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--warning);
+    border-radius: var(--radius);
+    background: var(--surface-light);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.restart-note strong {
+    color: var(--text);
+}
+
 .hub-location {
     margin-bottom: var(--gap);
-    padding: 0.8rem;
+    padding: 0.875rem 1rem;
     border: 1px solid var(--border);
     border-left: 4px solid var(--primary);
     border-radius: var(--radius);
@@ -884,7 +1047,8 @@ textarea {
     max-width: 52rem;
     margin: 0.55rem 0 0;
     color: var(--text-muted);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
 }
 
 .hub-location p code {
@@ -906,28 +1070,17 @@ textarea {
     background: var(--surface);
 }
 
-#targets .capability-card {
-    padding: 0.75rem;
-}
-
 .capability-card h3 {
     margin: 0 0 0.35rem;
-    font-size: 0.95rem;
-}
-
-#targets .capability-card h3 {
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
 }
 
 .capability-card p {
     margin: 0;
     color: var(--text-muted);
-    font-size: 0.85rem;
-    line-height: 1.5;
-}
-
-#targets .capability-card p {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
 }
 
 .capability-card strong {

@@ -98,6 +98,23 @@ Use this to test imports.
     assert response.status_code == 200
     assert "# Uploaded Skill" in response.json()["content"]
 
+    presence = client.get("/api/skills/presence")
+    skill = next(item for item in presence.json() if item["name"] == "uploaded-skill")
+    assert skill["added_via"] == "upload"
+    assert skill["source_url"] == ""
+
+
+def test_create_skill_records_created_origin(client: TestClient) -> None:
+    response = client.post(
+        "/api/skills",
+        json={"name": "created-skill", "description": "Made in app", "tags": ["demo"], "path": "/"},
+    )
+    assert response.status_code == 200
+    presence = client.get("/api/skills/presence")
+    skill = next(item for item in presence.json() if item["name"] == "created-skill")
+    assert skill["added_via"] == "created"
+    assert skill["source_url"] == ""
+
 
 def test_upload_skill_markdown_uses_filename_without_frontmatter_name(client: TestClient) -> None:
     response = client.post(
@@ -108,7 +125,7 @@ def test_upload_skill_markdown_uses_filename_without_frontmatter_name(client: Te
     assert response.json()["name"] == "filename-skill"
 
 
-def test_import_skill_from_github_link(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_import_skill_from_github_link(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     class FakeResponse:
         def __enter__(self) -> "FakeResponse":
             return self
@@ -145,6 +162,67 @@ description: Imported from GitHub
         "https://raw.githubusercontent.com/example/repo/main/skills/github-skill/SKILL.md"
     ]
 
+    presence = client.get("/api/skills/presence")
+    assert presence.status_code == 200
+    skill = next(item for item in presence.json() if item["name"] == "github-skill")
+    assert skill["source_url"] == "https://github.com/example/repo/blob/main/skills/github-skill/SKILL.md"
+    assert skill["added_via"] == "github"
+    source_file = tmp_path / "hub" / "github-skill" / ".asm-source.json"
+    assert source_file.exists()
+    assert "github.com/example/repo" in source_file.read_text(encoding="utf-8")
+    assert '"origin": "github"' in source_file.read_text(encoding="utf-8")
+
+
+def test_refresh_skill_from_github(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self, size: int = -1) -> bytes:
+            return b"""---
+name: github-skill
+description: Updated from GitHub
+---
+
+# Updated GitHub Skill
+"""
+
+    requested_urls: list[str] = []
+
+    def fake_urlopen(request: object, timeout: int = 0) -> FakeResponse:
+        requested_urls.append(request.full_url)  # type: ignore[attr-defined]
+        return FakeResponse()
+
+    monkeypatch.setattr(app_main, "urlopen", fake_urlopen)
+
+    import_response = client.post(
+        "/api/skills/import-url",
+        json={"url": "https://github.com/example/repo/blob/main/skills/github-skill/SKILL.md"},
+    )
+    assert import_response.status_code == 200
+
+    refresh_response = client.post("/api/skills/github-skill/refresh")
+    assert refresh_response.status_code == 200
+    assert refresh_response.json()["description"] == "Updated from GitHub"
+    assert requested_urls == [
+        "https://raw.githubusercontent.com/example/repo/main/skills/github-skill/SKILL.md",
+        "https://raw.githubusercontent.com/example/repo/main/skills/github-skill/SKILL.md",
+    ]
+
+    content = client.get("/api/skills/github-skill/content")
+    assert content.status_code == 200
+    assert "# Updated GitHub Skill" in content.json()["content"]
+
+
+def test_refresh_skill_without_github_source(client: TestClient, tmp_path: Path) -> None:
+    write_skill_metadata(tmp_path / "hub" / "local-skill", "local-skill", "Local only", [])
+    response = client.post("/api/skills/local-skill/refresh")
+    assert response.status_code == 400
+    assert "saved GitHub link" in response.json()["detail"]
+
 
 def test_import_skill_from_github_rejects_non_github_url(client: TestClient) -> None:
     response = client.post(
@@ -152,6 +230,45 @@ def test_import_skill_from_github_rejects_non_github_url(client: TestClient) -> 
         json={"url": "https://example.com/SKILL.md"},
     )
     assert response.status_code == 400
+    assert "github.com" in response.json()["detail"].lower()
+
+
+def test_import_skill_from_github_accepts_www_and_scheme_less_links(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self, size: int = -1) -> bytes:
+            return b"""---
+name: www-skill
+description: From www link
+---
+
+# WWW Skill
+"""
+
+    requested_urls: list[str] = []
+
+    def fake_urlopen(request: object, timeout: int = 0) -> FakeResponse:
+        requested_urls.append(request.full_url)  # type: ignore[attr-defined]
+        return FakeResponse()
+
+    monkeypatch.setattr(app_main, "urlopen", fake_urlopen)
+
+    response = client.post(
+        "/api/skills/import-url",
+        json={"url": "www.github.com/example/repo/blob/main/skills/www-skill/SKILL.md"},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "www-skill"
+    assert requested_urls == [
+        "https://raw.githubusercontent.com/example/repo/main/skills/www-skill/SKILL.md"
+    ]
 
 
 def test_skill_presence_includes_hub_and_agent_only_skills(tmp_path: Path) -> None:
