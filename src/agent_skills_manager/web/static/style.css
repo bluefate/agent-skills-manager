@@ -473,10 +473,20 @@ textarea {
 
 .skills-table td.actions-col {
     text-align: center;
+    width: 1%;
+    white-space: nowrap;
+    vertical-align: middle;
 }
 
 .skills-table td.actions-col .table-actions {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
     justify-content: center;
+    gap: 0.35rem;
+    margin-top: 0;
+    width: max-content;
 }
 
 .skills-table td strong {
@@ -527,14 +537,6 @@ textarea {
 .presence-col input[type="checkbox"] {
     width: 0.9rem;
     height: 0.9rem;
-}
-
-.table-actions {
-    margin-top: 0;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    justify-content: center;
-    gap: 0.35rem;
 }
 
 .muted {
