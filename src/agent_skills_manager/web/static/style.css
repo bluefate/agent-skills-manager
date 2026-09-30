@@ -566,6 +566,24 @@ textarea {
     line-height: 1.4;
 }
 
+.skills-table .skill-description-text + .skill-source-link {
+    margin-top: 0.3rem;
+}
+
+.skills-table .skill-source-link {
+    overflow-wrap: anywhere;
+}
+
+.skills-table .skill-source-link a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.skills-table .skill-source-link a:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+}
+
 .skills-table tr:has(+ .skill-description-row) td {
     border-bottom: 0;
     padding-bottom: 0.25rem;

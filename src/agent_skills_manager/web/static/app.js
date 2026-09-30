@@ -188,9 +188,15 @@ function renderSkills() {
                     ${rows.map(skill => {
                         const central = skill.locations.find(location => location.location_id === 'central');
                         const hasCentral = central?.present;
-                        const descriptionRow = skill.description ? `
+                        const sourceLink = skill.source_url
+                            ? `<div class="skill-source-link">GitHub: <a href="${escapeHtml(skill.source_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(skill.source_url)}</a></div>`
+                            : '';
+                        const descriptionRow = (skill.description || skill.source_url) ? `
                             <tr class="skill-description-row">
-                                <td colspan="${tableColumnCount}">${escapeHtml(skill.description)}</td>
+                                <td colspan="${tableColumnCount}">
+                                    ${skill.description ? `<div class="skill-description-text">${escapeHtml(skill.description)}</div>` : ''}
+                                    ${sourceLink}
+                                </td>
                             </tr>
                         ` : '';
                         return `
