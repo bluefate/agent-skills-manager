@@ -473,6 +473,7 @@ async function loadTargets() {
 async function saveDefaultTargets(enabledIds) {
     await API.post('/api/targets/defaults', enabledIds);
     await loadTargets();
+    await loadSkills();
     showToast('Known agent locations updated');
 }
 
@@ -584,6 +585,7 @@ async function removeDefaultTarget(id) {
     }
     await API.delete(`/api/targets?target_id=${encodeURIComponent(id)}`);
     await loadTargets();
+    await loadSkills();
     showToast('Known agent location removed');
 }
 
@@ -651,6 +653,7 @@ async function previewTarget(id, conflictStrategy = 'rename') {
                 });
                 closeModal();
                 await loadTargets();
+                await loadSkills();
                 showToast(
                     result.status === 'ok'
                         ? `${result.message} Restart that agent/editor to use the hub.`
@@ -687,6 +690,7 @@ async function removeSymlink(id) {
             });
             closeModal();
             await loadTargets();
+            await loadSkills();
             showToast(
                 result.status === 'ok'
                     ? `${result.message} Restart that agent/editor so it reloads its own directory.`
@@ -756,6 +760,7 @@ qs('#btn-add-target').addEventListener('click', () => {
             await API.post('/api/targets', { name: data.name, path: data.path, id: data.path, state: 'missing' });
             closeModal();
             await loadTargets();
+            await loadSkills();
             showToast('Agent location added');
         }),
     ]);
@@ -765,6 +770,7 @@ async function deleteTarget(id) {
     if (!confirm('Remove this custom agent location from the app?\n\nThis does not delete files or remove symlinks on your computer.')) return;
     await API.delete(`/api/targets?target_id=${encodeURIComponent(id)}`);
     await loadTargets();
+    await loadSkills();
     showToast('Agent location deleted');
 }
 
