@@ -1,7 +1,30 @@
 const API = {
+    async _errorMessage(res) {
+        const text = await res.text();
+        if (!text) {
+            return `Request failed (${res.status})`;
+        }
+        try {
+            const payload = JSON.parse(text);
+            if (typeof payload?.detail === 'string' && payload.detail.trim()) {
+                return payload.detail.trim();
+            }
+            if (Array.isArray(payload?.detail) && payload.detail.length) {
+                return payload.detail
+                    .map(item => (typeof item?.msg === 'string' ? item.msg : JSON.stringify(item)))
+                    .join(' ');
+            }
+            if (typeof payload?.message === 'string' && payload.message.trim()) {
+                return payload.message.trim();
+            }
+        } catch {
+            // Fall through to plain text.
+        }
+        return text.trim() || `Request failed (${res.status})`;
+    },
     async get(path) {
         const res = await fetch(path);
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await this._errorMessage(res));
         return res.json();
     },
     async post(path, body) {
@@ -10,12 +33,12 @@ const API = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await this._errorMessage(res));
         return res.json();
     },
     async delete(path) {
         const res = await fetch(path, { method: 'DELETE' });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await this._errorMessage(res));
         return res.json();
     },
     async upload(path, formData) {
@@ -23,7 +46,7 @@ const API = {
             method: 'POST',
             body: formData,
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await this._errorMessage(res));
         return res.json();
     }
 };
@@ -383,7 +406,7 @@ qs('#btn-import-skill-url').addEventListener('click', () => {
             <label>GitHub skill link</label>
             <input type="text" name="url" placeholder="e.g. https://github.com/owner/repo/blob/main/path/SKILL.md" required>
         </div>
-        <p class="modal-help">Paste a GitHub Markdown file link or raw GitHub URL. The skill name comes from frontmatter, or from the filename when possible.</p>
+        <p class="modal-help">Paste a GitHub Markdown file link (the browser address for SKILL.md). Re-importing the same skill overwrites the local copy and keeps the GitHub link for Refresh.</p>
     `;
 
     openModal('Import Skill from GitHub', form, [

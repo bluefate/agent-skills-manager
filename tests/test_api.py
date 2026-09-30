@@ -221,7 +221,7 @@ def test_refresh_skill_without_github_source(client: TestClient, tmp_path: Path)
     write_skill_metadata(tmp_path / "hub" / "local-skill", "local-skill", "Local only", [])
     response = client.post("/api/skills/local-skill/refresh")
     assert response.status_code == 400
-    assert "no saved GitHub source" in response.json()["detail"]
+    assert "saved GitHub link" in response.json()["detail"]
 
 
 def test_import_skill_from_github_rejects_non_github_url(client: TestClient) -> None:
@@ -230,6 +230,45 @@ def test_import_skill_from_github_rejects_non_github_url(client: TestClient) -> 
         json={"url": "https://example.com/SKILL.md"},
     )
     assert response.status_code == 400
+    assert "github.com" in response.json()["detail"].lower()
+
+
+def test_import_skill_from_github_accepts_www_and_scheme_less_links(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self, size: int = -1) -> bytes:
+            return b"""---
+name: www-skill
+description: From www link
+---
+
+# WWW Skill
+"""
+
+    requested_urls: list[str] = []
+
+    def fake_urlopen(request: object, timeout: int = 0) -> FakeResponse:
+        requested_urls.append(request.full_url)  # type: ignore[attr-defined]
+        return FakeResponse()
+
+    monkeypatch.setattr(app_main, "urlopen", fake_urlopen)
+
+    response = client.post(
+        "/api/skills/import-url",
+        json={"url": "www.github.com/example/repo/blob/main/skills/www-skill/SKILL.md"},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "www-skill"
+    assert requested_urls == [
+        "https://raw.githubusercontent.com/example/repo/main/skills/www-skill/SKILL.md"
+    ]
 
 
 def test_skill_presence_includes_hub_and_agent_only_skills(tmp_path: Path) -> None:

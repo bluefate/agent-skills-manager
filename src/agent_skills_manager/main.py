@@ -110,26 +110,58 @@ def _validate_skill_name(name: str) -> str:
 
 
 def _github_raw_skill_url(url: str) -> tuple[str, str]:
-    parsed = urlparse(url)
+    cleaned = url.strip()
+    if cleaned.startswith("github.com/") or cleaned.startswith("www.github.com/"):
+        cleaned = f"https://{cleaned}"
+    if cleaned.startswith("http://"):
+        cleaned = "https://" + cleaned[len("http://") :]
+
+    parsed = urlparse(cleaned)
     if parsed.scheme != "https":
-        raise HTTPException(status_code=400, detail="Use an HTTPS GitHub URL")
-
-    if parsed.netloc == "raw.githubusercontent.com":
-        filename = Path(parsed.path).name
-        return url, filename
-
-    if parsed.netloc != "github.com":
-        raise HTTPException(status_code=400, detail="Use a github.com skill link")
-
-    parts = [part for part in parsed.path.split("/") if part]
-    if len(parts) < 5 or parts[2] != "blob":
         raise HTTPException(
             status_code=400,
-            detail="Use a GitHub file link like https://github.com/owner/repo/blob/branch/path/SKILL.md",
+            detail="Paste a full HTTPS GitHub link to a Markdown file (SKILL.md).",
+        )
+
+    host = parsed.netloc.lower()
+    if host == "raw.githubusercontent.com":
+        filename = Path(parsed.path).name
+        if not filename.lower().endswith(".md"):
+            raise HTTPException(
+                status_code=400,
+                detail="That GitHub link must point to a Markdown file ending in .md.",
+            )
+        return cleaned.split("?", 1)[0], filename
+
+    if host not in {"github.com", "www.github.com"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Only github.com links are supported. Open the skill file on GitHub and copy its address.",
+        )
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 5 or parts[2] not in {"blob", "raw"}:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "That doesn't look like a link to a specific file. "
+                "Open SKILL.md on GitHub, then copy the browser address. "
+                "It should look like https://github.com/owner/repo/blob/main/path/SKILL.md"
+            ),
         )
 
     owner, repo, _, ref, *path_parts = parts
-    filename = path_parts[-1] if path_parts else ""
+    if not path_parts:
+        raise HTTPException(
+            status_code=400,
+            detail="That GitHub link is missing the path to the Markdown file.",
+        )
+    filename = path_parts[-1]
+    if not filename.lower().endswith(".md"):
+        raise HTTPException(
+            status_code=400,
+            detail="That GitHub link must point to a Markdown file ending in .md.",
+        )
     raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{'/'.join(path_parts)}"
     return raw_url, filename
 
@@ -140,15 +172,21 @@ def _fetch_skill_markdown(url: str) -> str:
         with urlopen(request, timeout=5) as response:  # noqa: S310 - URL is validated as GitHub-only.
             raw = response.read(512 * 1024 + 1)
     except (OSError, URLError) as exc:
-        raise HTTPException(status_code=400, detail="Could not fetch skill from GitHub") from exc
+        raise HTTPException(
+            status_code=400,
+            detail="Couldn't download that skill from GitHub. Check the link and try again.",
+        ) from exc
 
     if len(raw) > 512 * 1024:
-        raise HTTPException(status_code=400, detail="Skill file is too large")
+        raise HTTPException(status_code=400, detail="That skill file is too large to import (max 512 KB).")
 
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise HTTPException(status_code=400, detail="Skill file must be UTF-8 text") from exc
+        raise HTTPException(
+            status_code=400,
+            detail="That skill file isn't valid UTF-8 text. Import a Markdown .md file instead.",
+        ) from exc
 
 
 def _default_targets_file(settings: Settings) -> Path:
@@ -570,7 +608,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def import_skill_url(request: SkillUrlImportRequest) -> Skill:
         raw_url, filename = _github_raw_skill_url(request.url)
         if not filename.lower().endswith(".md"):
-            raise HTTPException(status_code=400, detail="GitHub link must point to a Markdown .md file")
+            raise HTTPException(
+                status_code=400,
+                detail="That GitHub link must point to a Markdown file ending in .md.",
+            )
 
         content = await asyncio.to_thread(_fetch_skill_markdown, raw_url)
         skill_name = _validate_skill_name(_skill_name_from_upload(filename, content))
@@ -588,11 +629,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         source_url = _github_source_for_skill(settings, skill_name)
         if not source_url:
-            raise HTTPException(status_code=400, detail="This skill has no saved GitHub source to refresh from")
+            raise HTTPException(
+                status_code=400,
+                detail="This skill doesn't have a saved GitHub link to refresh from. Import it from GitHub once to enable Refresh.",
+            )
 
         raw_url, filename = _github_raw_skill_url(source_url)
         if not filename.lower().endswith(".md"):
-            raise HTTPException(status_code=400, detail="GitHub link must point to a Markdown .md file")
+            raise HTTPException(
+                status_code=400,
+                detail="That GitHub link must point to a Markdown file ending in .md.",
+            )
 
         content = await asyncio.to_thread(_fetch_skill_markdown, raw_url)
         refreshed_name = _validate_skill_name(_skill_name_from_upload(filename, content))
