@@ -458,7 +458,7 @@ function renderTargets() {
             <div class="actions">
                 ${t.state === 'directory' || t.state === 'missing' ? `<button class="btn small primary" data-preview="${escapeHtml(t.id)}">${t.state === 'missing' ? 'Preview & Create Link' : 'Preview & Symlink'}</button>` : ''}
                 ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Link</button>` : ''}
-                ${t.can_undo ? `<button class="btn small warning" data-undo="${escapeHtml(t.id)}">Undo Symlink</button>` : ''}
+                ${t.can_undo ? `<button class="btn small warning" data-undo="${escapeHtml(t.id)}">Restore Original</button>` : ''}
                 ${isDefaultTarget(t) ? `<button class="btn small" data-remove-default-target="${escapeHtml(t.id)}">Remove from App</button>` : ''}
                 ${!isDefaultTarget(t) ? `<button class="btn small danger" data-delete-target="${escapeHtml(t.id)}">Remove from App</button>` : ''}
             </div>
@@ -652,7 +652,7 @@ async function removeSymlink(id) {
 async function undoSymlink(id) {
     const target = state.targets.find(t => t.id === id);
     if (!target) return;
-    if (!confirm(`Undo symlink for ${target.name}?\n\nThis will restore the original directory and move skills back from the central hub.`)) {
+    if (!confirm(`Restore original skills for ${target.name}?\n\nThis will restore the original directory and move skills back from the central hub.`)) {
         return;
     }
     const result = await API.post('/api/targets/undo-symlink', { target_id: id });
