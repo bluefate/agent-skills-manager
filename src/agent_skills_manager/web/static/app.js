@@ -457,10 +457,10 @@ function renderTargets() {
             <p>${t.skills.length} skill(s) visible here</p>
             <div class="actions">
                 ${t.state === 'directory' || t.state === 'missing' ? `<button class="btn small primary" data-preview="${escapeHtml(t.id)}">${t.state === 'missing' ? 'Preview & Create Link' : 'Preview & Symlink'}</button>` : ''}
-                ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Symlink</button>` : ''}
+                ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Link</button>` : ''}
                 ${t.can_undo ? `<button class="btn small warning" data-undo="${escapeHtml(t.id)}">Undo Symlink</button>` : ''}
-                ${isDefaultTarget(t) ? `<button class="btn small" data-remove-default-target="${escapeHtml(t.id)}">Remove Location</button>` : ''}
-                ${!isDefaultTarget(t) ? `<button class="btn small danger" data-delete-target="${escapeHtml(t.id)}">Delete Location</button>` : ''}
+                ${isDefaultTarget(t) ? `<button class="btn small" data-remove-default-target="${escapeHtml(t.id)}">Remove from App</button>` : ''}
+                ${!isDefaultTarget(t) ? `<button class="btn small danger" data-delete-target="${escapeHtml(t.id)}">Remove from App</button>` : ''}
             </div>
         </div>
     `}).join('');
@@ -629,7 +629,7 @@ async function removeSymlink(id) {
             <label for="restore-dir">Recreate an empty directory afterward</label>
         </div>
     `;
-    openModal('Remove Symlink', body, [
+    openModal('Remove Link', body, [
         makeButton('Cancel', '', closeModal),
         makeButton('Remove', 'danger', async () => {
             const restore = qs('#restore-dir', body).checked;
@@ -714,7 +714,7 @@ qs('#btn-add-target').addEventListener('click', () => {
 });
 
 async function deleteTarget(id) {
-    if (!confirm('Delete this custom agent location from the list?')) return;
+    if (!confirm('Remove this custom agent location from the app?\n\nThis does not delete files or remove symlinks on your computer.')) return;
     await API.delete(`/api/targets?target_id=${encodeURIComponent(id)}`);
     await loadTargets();
     showToast('Agent location deleted');
