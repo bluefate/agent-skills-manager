@@ -406,7 +406,8 @@ textarea {
     margin-top: 0.35rem;
 }
 
-.presence-col {
+.skills-table th.presence-col,
+.skills-table td.presence-col {
     width: 7.5rem;
     text-align: center;
     white-space: nowrap;
