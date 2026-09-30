@@ -926,8 +926,8 @@ textarea {
 .default-targets-list {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 0.5rem;
-    margin: 0.75rem 0;
+    gap: 0.4rem;
+    margin: 0.6rem 0;
 }
 
 .default-target-row {
@@ -943,13 +943,15 @@ textarea {
     align-items: center;
     min-width: 0;
     margin-bottom: 0;
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.6rem;
     background: var(--bg);
     border-radius: var(--radius);
+    font-size: 0.8125rem;
 }
 
 .default-target-name {
     font-weight: 500;
+    font-size: 0.8125rem;
 }
 
 .default-target-path {
@@ -957,6 +959,7 @@ textarea {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 0.75rem;
 }
 
 @media (max-width: 560px) {
