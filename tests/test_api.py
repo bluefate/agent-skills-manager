@@ -98,6 +98,23 @@ Use this to test imports.
     assert response.status_code == 200
     assert "# Uploaded Skill" in response.json()["content"]
 
+    presence = client.get("/api/skills/presence")
+    skill = next(item for item in presence.json() if item["name"] == "uploaded-skill")
+    assert skill["added_via"] == "upload"
+    assert skill["source_url"] == ""
+
+
+def test_create_skill_records_created_origin(client: TestClient) -> None:
+    response = client.post(
+        "/api/skills",
+        json={"name": "created-skill", "description": "Made in app", "tags": ["demo"], "path": "/"},
+    )
+    assert response.status_code == 200
+    presence = client.get("/api/skills/presence")
+    skill = next(item for item in presence.json() if item["name"] == "created-skill")
+    assert skill["added_via"] == "created"
+    assert skill["source_url"] == ""
+
 
 def test_upload_skill_markdown_uses_filename_without_frontmatter_name(client: TestClient) -> None:
     response = client.post(
