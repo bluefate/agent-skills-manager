@@ -459,9 +459,15 @@ textarea {
 
 .skills-table .skill-description-row td {
     padding: 0 0.65rem 0.55rem;
+    border-bottom: 0;
     color: var(--text-muted);
     font-size: 0.75rem;
     line-height: 1.4;
+}
+
+.skills-table tr:has(+ .skill-description-row) td {
+    border-bottom: 0;
+    padding-bottom: 0.25rem;
 }
 
 .skills-table tbody tr:last-child td {
