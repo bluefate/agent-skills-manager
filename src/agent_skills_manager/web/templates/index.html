@@ -36,7 +36,7 @@
 
     <nav class="tabs" role="tablist">
         <button class="tab active" data-tab="skills">Skill Library</button>
-        <button class="tab" data-tab="targets">Agent Locations</button>
+        <button class="tab" data-tab="targets">Skill Agent Locations</button>
     </nav>
 
     <main class="container">
@@ -69,12 +69,12 @@
                 </article>
             </div>
             <input type="text" id="skill-filter" placeholder="Filter by name or tag...">
-            <div id="skills-list" class="card-list skills-grid"></div>
+            <div id="skills-list" class="skills-table-container"></div>
         </section>
 
         <section id="targets" class="panel">
             <div class="panel-header">
-                <h2>Agent Locations</h2>
+                <h2>Skill Agent Locations</h2>
                 <button id="btn-add-target" class="btn primary">Add Location</button>
             </div>
             <div class="hub-location">
@@ -91,7 +91,7 @@
                 Symlink agent-specific skill directories to the central hub. Preview first to safely move any existing skills.
                 <strong>After creating or removing a symlink, restart that agent/editor.</strong>
             </div>
-            <div class="capability-grid" aria-label="Agent Locations capabilities">
+            <div class="capability-grid" aria-label="Skill Agent Locations capabilities">
                 <article class="capability-card">
                     <h3>Choose locations</h3>
                     <p>Enable known agent paths or add a custom location for another editor or tool.</p>
@@ -110,6 +110,16 @@
                 <p><strong>Missing</strong> means the agent’s expected skills path does not exist yet. Use <strong>Preview &amp; Create Link</strong> to review the operation and create that path as a link to the central hub.</p>
             </div>
             <div id="targets-list" class="card-list targets-grid"></div>
+            <div class="location-notes">
+                <h3>Linking notes</h3>
+                <ul>
+                    <li><strong>Preview &amp; Symlink</strong> moves existing skills from that agent folder into the central hub before creating the link.</li>
+                    <li><strong>Remove Link</strong> removes only the symlink. It can recreate an empty folder, but it does not move original skills back.</li>
+                    <li><strong>Restore Original</strong> appears when undo history is available and moves the skills from link creation back to the original folder.</li>
+                    <li><strong>Remove Location</strong> removes the location from this app’s list. It does not delete files or remove links on your computer.</li>
+                    <li>Merge or delete conflict choices may prevent a clean automatic undo because the original copies are no longer separate.</li>
+                </ul>
+            </div>
         </section>
 
         <section id="projects" class="panel project-reviewer">

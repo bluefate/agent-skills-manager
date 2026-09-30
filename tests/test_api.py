@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 import agent_skills_manager.main as app_main
 from agent_skills_manager.config import Settings
 from agent_skills_manager.main import create_app
+from agent_skills_manager.services.skills import write_skill_metadata
 
 
 @pytest.fixture
@@ -149,6 +150,98 @@ def test_import_skill_from_github_rejects_non_github_url(client: TestClient) -> 
     response = client.post(
         "/api/skills/import-url",
         json={"url": "https://example.com/SKILL.md"},
+    )
+    assert response.status_code == 400
+
+
+def test_skill_presence_includes_hub_and_agent_only_skills(tmp_path: Path) -> None:
+    settings = Settings(skills_dir=tmp_path / "hub", config_dir=tmp_path / "config")
+    client = TestClient(create_app(settings))
+    target_path = tmp_path / "cursor-skills"
+
+    client.post("/api/targets/defaults", json=[])
+    target_path.mkdir(parents=True)
+    target = client.post(
+        "/api/targets",
+        json={"name": "Cursor Test", "path": str(target_path), "id": str(target_path), "state": "missing"},
+    ).json()
+    client.post(
+        "/api/skills",
+        json={"name": "hub-skill", "description": "From hub", "tags": [], "path": "/"},
+    )
+    write_skill_metadata(target_path / "target-only", "target-only", "Only in target", [])
+
+    response = client.get("/api/skills/presence")
+    assert response.status_code == 200
+    rows = {row["name"]: row for row in response.json()}
+
+    assert set(rows) == {"hub-skill", "target-only"}
+    hub_skill_locations = {location["location_id"]: location for location in rows["hub-skill"]["locations"]}
+    target_only_locations = {location["location_id"]: location for location in rows["target-only"]["locations"]}
+    assert hub_skill_locations["central"]["present"] is True
+    assert hub_skill_locations[target["id"]]["present"] is False
+    assert target_only_locations["central"]["present"] is False
+    assert target_only_locations[target["id"]]["present"] is True
+
+
+def test_skill_presence_toggle_copies_and_removes_skills(tmp_path: Path) -> None:
+    settings = Settings(skills_dir=tmp_path / "hub", config_dir=tmp_path / "config")
+    client = TestClient(create_app(settings))
+    target_path = tmp_path / "cursor-skills"
+
+    client.post("/api/targets/defaults", json=[])
+    target_path.mkdir(parents=True)
+    target = client.post(
+        "/api/targets",
+        json={"name": "Cursor Test", "path": str(target_path), "id": str(target_path), "state": "missing"},
+    ).json()
+    client.post(
+        "/api/skills",
+        json={"name": "copy-me", "description": "Copy me", "tags": [], "path": "/"},
+    )
+
+    response = client.post(
+        "/api/skills/presence",
+        json={"skill_name": "copy-me", "location_id": target["id"], "present": True},
+    )
+    assert response.status_code == 200
+    assert (target_path / "copy-me" / "SKILL.md").exists()
+
+    response = client.post(
+        "/api/skills/presence",
+        json={"skill_name": "copy-me", "location_id": target["id"], "present": False},
+    )
+    assert response.status_code == 200
+    assert not (target_path / "copy-me").exists()
+
+
+def test_skill_presence_symlink_locations_are_read_only(tmp_path: Path) -> None:
+    settings = Settings(skills_dir=tmp_path / "hub", config_dir=tmp_path / "config")
+    client = TestClient(create_app(settings))
+    target_path = tmp_path / "codex-skills"
+
+    client.post("/api/targets/defaults", json=[])
+    client.post(
+        "/api/skills",
+        json={"name": "linked-skill", "description": "Linked", "tags": [], "path": "/"},
+    )
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.symlink_to(settings.skills_dir, target_is_directory=True)
+    target = client.post(
+        "/api/targets",
+        json={"name": "Codex Test", "path": str(target_path), "id": str(target_path), "state": "missing"},
+    ).json()
+
+    response = client.get("/api/skills/presence")
+    assert response.status_code == 200
+    row = next(item for item in response.json() if item["name"] == "linked-skill")
+    location = next(item for item in row["locations"] if item["location_id"] == target["id"])
+    assert location["present"] is True
+    assert location["read_only"] is True
+
+    response = client.post(
+        "/api/skills/presence",
+        json={"skill_name": "linked-skill", "location_id": target["id"], "present": False},
     )
     assert response.status_code == 400
 

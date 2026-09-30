@@ -39,6 +39,7 @@ const toast = qs('#toast');
 
 let state = {
     skills: [],
+    skillPresence: [],
     targets: [],
     defaultTargets: [],
     enabledDefaults: [],
@@ -135,40 +136,83 @@ qsa('.tab').forEach(tab => {
 
 // Skills
 async function loadSkills() {
-    state.skills = await API.get('/api/skills');
+    const [skills, skillPresence] = await Promise.all([
+        API.get('/api/skills'),
+        API.get('/api/skills/presence'),
+    ]);
+    state.skills = skills;
+    state.skillPresence = skillPresence;
     renderSkills();
 }
 
 function renderSkills() {
     const filter = qs('#skill-filter').value.toLowerCase();
     const list = qs('#skills-list');
-    const skills = state.skills.filter(s =>
+    const rows = state.skillPresence.filter(s =>
         s.name.toLowerCase().includes(filter) ||
         (s.description || '').toLowerCase().includes(filter) ||
         s.tags.some(t => t.toLowerCase().includes(filter))
     );
 
-    if (!skills.length) {
+    if (!rows.length) {
         list.innerHTML = '<div class="empty">No skills found.</div>';
         return;
     }
 
-    list.innerHTML = skills.map(s => `
-        <div class="card" data-skill="${escapeHtml(s.name)}">
-            <div class="card-title">
-                ${escapeHtml(s.name)}
-                <span class="badge ${s.is_symlink ? 'symlink-ok' : 'missing'}">${s.is_symlink ? 'symlink' : 'dir'}</span>
-            </div>
-            <div class="card-meta">${escapeHtml(s.path)}</div>
-            ${s.description ? `<p>${escapeHtml(s.description)}</p>` : ''}
-            <div class="card-tags">${s.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-            <div class="actions">
-                <button class="btn small" data-edit="${escapeHtml(s.name)}">Edit</button>
-                <button class="btn small" data-preview-skill="${escapeHtml(s.name)}">Preview</button>
-                <button class="btn small danger" data-delete="${escapeHtml(s.name)}">Delete</button>
-            </div>
+    const locations = rows[0].locations;
+    const tableColumnCount = locations.length + 2;
+    list.innerHTML = `
+        <div class="table-wrap">
+            <table class="skills-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        ${locations.map(location => `<th class="presence-col">${escapeHtml(location.name)}</th>`).join('')}
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map(skill => {
+                        const central = skill.locations.find(location => location.location_id === 'central');
+                        const hasCentral = central?.present;
+                        const descriptionRow = skill.description ? `
+                            <tr class="skill-description-row">
+                                <td colspan="${tableColumnCount}">${escapeHtml(skill.description)}</td>
+                            </tr>
+                        ` : '';
+                        return `
+                            <tr data-skill="${escapeHtml(skill.name)}">
+                                <td>
+                                    <strong>${escapeHtml(skill.name)}</strong>
+                                    ${skill.tags.length ? `<div class="card-tags">${skill.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+                                </td>
+                                ${skill.locations.map(location => `
+                                    <td class="presence-col">
+                                        <input
+                                            type="checkbox"
+                                            data-skill-presence="${escapeHtml(skill.name)}"
+                                            data-location-id="${escapeHtml(location.location_id)}"
+                                            ${location.present ? 'checked' : ''}
+                                            ${location.read_only ? 'disabled' : ''}
+                                            title="${escapeHtml(location.reason || (location.present ? 'Skill is present' : 'Skill is not present'))}"
+                                        >
+                                    </td>
+                                `).join('')}
+                                <td>
+                                    <div class="actions table-actions">
+                                        <button class="btn small" data-edit="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Edit</button>
+                                        <button class="btn small" data-preview-skill="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Preview</button>
+                                        <button class="btn small danger" data-delete="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            ${descriptionRow}
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
         </div>
-    `).join('');
+    `;
 
     qsa('[data-edit]', list).forEach(btn => {
         btn.addEventListener('click', () => editSkill(btn.dataset.edit));
@@ -179,6 +223,39 @@ function renderSkills() {
     qsa('[data-delete]', list).forEach(btn => {
         btn.addEventListener('click', () => deleteSkill(btn.dataset.delete));
     });
+    qsa('[data-skill-presence]', list).forEach(input => {
+        input.addEventListener('change', () => setSkillPresence(input));
+    });
+}
+
+async function setSkillPresence(input) {
+    const skillName = input.dataset.skillPresence;
+    const locationId = input.dataset.locationId;
+    const present = input.checked;
+    const location = state.skillPresence
+        .find(skill => skill.name === skillName)
+        ?.locations.find(item => item.location_id === locationId);
+    const locationName = location?.name || 'this location';
+
+    if (!present && !confirm(`Remove "${skillName}" from ${locationName}?`)) {
+        input.checked = true;
+        return;
+    }
+
+    input.disabled = true;
+    try {
+        const result = await API.post('/api/skills/presence', {
+            skill_name: skillName,
+            location_id: locationId,
+            present,
+        });
+        await loadSkills();
+        showToast(result.message);
+    } catch (err) {
+        input.checked = !present;
+        input.disabled = false;
+        showToast(err.message, 'error');
+    }
 }
 
 async function previewSkill(name) {
@@ -385,10 +462,10 @@ function renderTargets() {
             <p>${t.skills.length} skill(s) visible here</p>
             <div class="actions">
                 ${t.state === 'directory' || t.state === 'missing' ? `<button class="btn small primary" data-preview="${escapeHtml(t.id)}">${t.state === 'missing' ? 'Preview & Create Link' : 'Preview & Symlink'}</button>` : ''}
-                ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Symlink</button>` : ''}
-                ${t.can_undo ? `<button class="btn small warning" data-undo="${escapeHtml(t.id)}">Undo Symlink</button>` : ''}
+                ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Link</button>` : ''}
+                ${t.can_undo ? `<button class="btn small warning" data-undo="${escapeHtml(t.id)}">Restore Original</button>` : ''}
                 ${isDefaultTarget(t) ? `<button class="btn small" data-remove-default-target="${escapeHtml(t.id)}">Remove Location</button>` : ''}
-                ${!isDefaultTarget(t) ? `<button class="btn small danger" data-delete-target="${escapeHtml(t.id)}">Delete Location</button>` : ''}
+                ${!isDefaultTarget(t) ? `<button class="btn small danger" data-delete-target="${escapeHtml(t.id)}">Remove Location</button>` : ''}
             </div>
         </div>
     `}).join('');
@@ -557,7 +634,7 @@ async function removeSymlink(id) {
             <label for="restore-dir">Recreate an empty directory afterward</label>
         </div>
     `;
-    openModal('Remove Symlink', body, [
+    openModal('Remove Link', body, [
         makeButton('Cancel', '', closeModal),
         makeButton('Remove', 'danger', async () => {
             const restore = qs('#restore-dir', body).checked;
@@ -580,7 +657,7 @@ async function removeSymlink(id) {
 async function undoSymlink(id) {
     const target = state.targets.find(t => t.id === id);
     if (!target) return;
-    if (!confirm(`Undo symlink for ${target.name}?\n\nThis will restore the original directory and move skills back from the central hub.`)) {
+    if (!confirm(`Restore original skills for ${target.name}?\n\nThis will restore the original directory and move skills back from the central hub.`)) {
         return;
     }
     const result = await API.post('/api/targets/undo-symlink', { target_id: id });
@@ -642,7 +719,7 @@ qs('#btn-add-target').addEventListener('click', () => {
 });
 
 async function deleteTarget(id) {
-    if (!confirm('Delete this custom agent location from the list?')) return;
+    if (!confirm('Remove this custom agent location from the app?\n\nThis does not delete files or remove symlinks on your computer.')) return;
     await API.delete(`/api/targets?target_id=${encodeURIComponent(id)}`);
     await loadTargets();
     showToast('Agent location deleted');

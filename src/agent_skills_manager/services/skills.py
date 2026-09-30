@@ -130,6 +130,14 @@ def delete_skill(path: Path) -> None:
         shutil.rmtree(path, ignore_errors=True)
 
 
+def copy_skill(source: Path, destination: Path) -> None:
+    """Copy a skill directory to a destination that does not exist yet."""
+    if destination.exists():
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, destination, symlinks=True)
+
+
 def plan_move_to_hub(
     source_dir: Path,
     hub_dir: Path,

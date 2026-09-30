@@ -27,12 +27,16 @@ from agent_skills_manager.models import (
     Project,
     RemoveSymlinkRequest,
     Skill,
+    SkillLocationPresence,
+    SkillPresence,
+    SkillPresenceRequest,
     SkillUrlImportRequest,
     SymlinkRequest,
     UndoRequest,
 )
 from agent_skills_manager.services.projects import scan_project
 from agent_skills_manager.services.skills import (
+    copy_skill,
     delete_skill,
     list_skills,
     read_skill,
@@ -216,6 +220,122 @@ def _get_all_targets(settings: Settings) -> list[AgentTarget]:
     return targets
 
 
+def _skill_key(skill: Skill) -> str:
+    return skill.path.name
+
+
+def _skill_summary(skills_by_location: dict[str, Skill]) -> tuple[str, list[str]]:
+    central = skills_by_location.get("central")
+    source = central or next(iter(skills_by_location.values()))
+    return source.description, source.tags
+
+
+def _target_presence_read_only(target: AgentTarget) -> tuple[bool, str]:
+    if target.state == "symlink_ok":
+        return True, "Linked to central hub"
+    if target.state == "directory":
+        return False, ""
+    if target.state == "missing":
+        return True, "Location does not exist"
+    if target.state == "symlink_broken":
+        return True, "Broken symlink"
+    if target.state == "file":
+        return True, "Path is a file"
+    return True, "Unavailable"
+
+
+def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
+    hub_skills = list_skills(settings.skills_dir, source="Central Hub")
+    targets = _get_all_targets(settings)
+    skill_map: dict[str, dict[str, Skill]] = {}
+
+    for skill in hub_skills:
+        skill_map.setdefault(_skill_key(skill), {})["central"] = skill
+
+    for target in targets:
+        for skill in target.skills:
+            skill_map.setdefault(_skill_key(skill), {})[target.id] = skill
+
+    rows: list[SkillPresence] = []
+    for skill_name in sorted(skill_map):
+        description, tags = _skill_summary(skill_map[skill_name])
+        locations = [
+            SkillLocationPresence(
+                location_id="central",
+                name="Central Hub",
+                path=settings.skills_dir / skill_name,
+                present="central" in skill_map[skill_name],
+            )
+        ]
+
+        for target in targets:
+            read_only, reason = _target_presence_read_only(target)
+            locations.append(
+                SkillLocationPresence(
+                    location_id=target.id,
+                    name=target.name,
+                    path=target.path / skill_name,
+                    present=target.id in skill_map[skill_name],
+                    read_only=read_only,
+                    reason=reason,
+                )
+            )
+
+        rows.append(
+            SkillPresence(
+                name=skill_name,
+                description=description,
+                tags=tags,
+                locations=locations,
+            )
+        )
+    return rows
+
+
+def _find_skill_source(settings: Settings, skill_name: str, excluded_location_id: str) -> Path | None:
+    candidates: list[Path] = []
+    if excluded_location_id != "central":
+        candidates.append(settings.skills_dir / skill_name)
+    for target in _get_all_targets(settings):
+        if target.id == excluded_location_id or target.state == "symlink_ok":
+            continue
+        candidates.append(target.path / skill_name)
+    for candidate in candidates:
+        if candidate.exists() and (candidate.is_dir() or candidate.is_symlink()):
+            return candidate
+    return None
+
+
+def _set_skill_presence(settings: Settings, request: SkillPresenceRequest) -> dict[str, str]:
+    if "/" in request.skill_name or "\\" in request.skill_name or request.skill_name in {"", ".", ".."}:
+        raise HTTPException(status_code=400, detail="Invalid skill name")
+
+    if request.location_id == "central":
+        destination = settings.skills_dir / request.skill_name
+    else:
+        target = find_target_by_id(_get_all_targets(settings), request.location_id)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Location not found")
+        read_only, reason = _target_presence_read_only(target)
+        if read_only:
+            raise HTTPException(status_code=400, detail=reason or "Location cannot be changed")
+        destination = target.path / request.skill_name
+
+    if not request.present:
+        delete_skill(destination)
+        return {"status": "ok", "message": "Skill removed from location"}
+
+    if destination.exists():
+        return {"status": "ok", "message": "Skill already exists at location"}
+
+    source = _find_skill_source(settings, request.skill_name, request.location_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="No source copy found for this skill")
+
+    copy_skill(source, destination)
+    return {"status": "ok", "message": "Skill copied to location"}
+
+
 GITHUB_RELEASE_URL = "https://api.github.com/repos/bluefate/skill-manager/releases/latest"
 UPDATE_CACHE_SECONDS = 3600
 
@@ -304,6 +424,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/skills", response_model=list[Skill])
     async def get_skills() -> list[Skill]:
         return list_skills(settings.skills_dir, source="central")
+
+    @app.get("/api/skills/presence", response_model=list[SkillPresence])
+    async def get_skills_presence() -> list[SkillPresence]:
+        return _get_skill_presence(settings)
+
+    @app.post("/api/skills/presence")
+    async def set_skills_presence(request: SkillPresenceRequest) -> dict[str, str]:
+        return _set_skill_presence(settings, request)
 
     @app.get("/api/skills/{skill_name}", response_model=Skill)
     async def get_skill(skill_name: str) -> Skill:

@@ -64,6 +64,26 @@ class AgentTarget(BaseModel):
     can_undo: bool = False
 
 
+class SkillLocationPresence(BaseModel):
+    """Whether a skill folder exists at one managed location."""
+
+    location_id: str
+    name: str
+    path: Path
+    present: bool
+    read_only: bool = False
+    reason: str = ""
+
+
+class SkillPresence(BaseModel):
+    """A skill folder and its presence across the hub and agent locations."""
+
+    name: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    locations: list[SkillLocationPresence] = Field(default_factory=list)
+
+
 class PreviewResult(BaseModel):
     """Result of previewing a target before symlinking."""
 
@@ -81,6 +101,14 @@ class SymlinkRequest(BaseModel):
     target_id: str
     move_existing: bool = True
     conflict_strategy: Literal["rename", "skip", "merge", "discard"] = "rename"
+
+
+class SkillPresenceRequest(BaseModel):
+    """Request to add or remove a skill folder at one location."""
+
+    skill_name: str
+    location_id: str
+    present: bool
 
 
 class RemoveSymlinkRequest(BaseModel):
