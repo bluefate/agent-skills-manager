@@ -295,7 +295,7 @@ def _target_presence_read_only(target: AgentTarget) -> tuple[bool, str]:
 
 
 def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
-    hub_skills = list_skills(settings.skills_dir, source="Central Hub")
+    hub_skills = list_skills(settings.skills_dir, source="Universal")
     targets = _get_all_targets(settings)
     github_sources = _load_github_sources(settings)
     skill_map: dict[str, dict[str, Skill]] = {}
@@ -313,7 +313,7 @@ def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
         locations = [
             SkillLocationPresence(
                 location_id="central",
-                name="Central Hub",
+                name="Universal",
                 path=settings.skills_dir / skill_name,
                 present="central" in skill_map[skill_name],
             )
