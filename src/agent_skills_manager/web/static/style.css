@@ -476,7 +476,7 @@ textarea {
 }
 
 .skills-table td.actions-col .table-actions {
-    align-items: stretch;
+    justify-content: center;
 }
 
 .skills-table td strong {
@@ -531,15 +531,10 @@ textarea {
 
 .table-actions {
     margin-top: 0;
-    flex-direction: column;
+    flex-direction: row;
     flex-wrap: nowrap;
-    align-items: stretch;
-    gap: 0.35rem;
-}
-
-.table-actions .btn {
-    width: 100%;
     justify-content: center;
+    gap: 0.35rem;
 }
 
 .muted {
