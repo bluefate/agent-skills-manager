@@ -481,6 +481,33 @@ textarea {
     vertical-align: middle;
 }
 
+.upload-badge,
+.created-badge {
+    background: var(--surface-light);
+    color: var(--text-muted);
+    vertical-align: middle;
+}
+
+.origin-badge {
+    margin-left: 0.15rem;
+}
+
+.origin-note {
+    margin: 0 0 var(--gap);
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+    border-radius: var(--radius);
+    background: var(--surface-light);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.origin-note strong {
+    color: var(--text);
+}
+
 .skills-table td.actions-col {
     text-align: center;
     width: 1%;

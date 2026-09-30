@@ -159,6 +159,19 @@ function renderSkills() {
         return;
     }
 
+    const originBadge = (skill) => {
+        if (skill.added_via === 'github' || skill.source_url) {
+            return `<span class="badge origin-badge github-badge" title="${escapeHtml(skill.source_url || 'Imported from GitHub')}">GitHub</span>`;
+        }
+        if (skill.added_via === 'upload') {
+            return `<span class="badge origin-badge upload-badge" title="Uploaded through this app">Uploaded</span>`;
+        }
+        if (skill.added_via === 'created') {
+            return `<span class="badge origin-badge created-badge" title="Created through this app">Created</span>`;
+        }
+        return '';
+    };
+
     const locations = rows[0].locations;
     const tableColumnCount = locations.length + 2;
     list.innerHTML = `
@@ -184,7 +197,7 @@ function renderSkills() {
                             <tr data-skill="${escapeHtml(skill.name)}">
                                 <td class="skill-name-col">
                                     <strong>${escapeHtml(skill.name)}</strong>
-                                    ${skill.source_url ? `<span class="badge github-badge" title="${escapeHtml(skill.source_url)}">GitHub</span>` : ''}
+                                    ${originBadge(skill)}
                                     ${skill.tags.length ? `<div class="card-tags">${skill.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
                                 </td>
                                 ${skill.locations.map(location => `
