@@ -459,7 +459,6 @@ textarea {
 
 .skills-table .skill-description-row td {
     padding: 0 0.65rem 0.55rem;
-    border-bottom: 0;
     color: var(--text-muted);
     font-size: 0.75rem;
     line-height: 1.4;
