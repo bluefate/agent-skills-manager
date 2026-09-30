@@ -310,15 +310,15 @@ function skillForm(skill = null) {
     form.innerHTML = `
         <div class="form-group">
             <label>Name</label>
-            <input type="text" name="name" value="${skill ? escapeHtml(skill.name) : ''}" required>
+            <input type="text" name="name" value="${skill ? escapeHtml(skill.name) : ''}" placeholder="e.g. frontend-design" required>
         </div>
         <div class="form-group">
             <label>Description</label>
-            <textarea name="description">${skill ? escapeHtml(skill.description) : ''}</textarea>
+            <textarea name="description" placeholder="e.g. Guidance for distinctive UI work and visual direction">${skill ? escapeHtml(skill.description) : ''}</textarea>
         </div>
         <div class="form-group">
             <label>Tags (comma separated)</label>
-            <input type="text" name="tags" value="${skill ? escapeHtml(skill.tags.join(', ')) : ''}">
+            <input type="text" name="tags" value="${skill ? escapeHtml(skill.tags.join(', ')) : ''}" placeholder="e.g. design, ui, frontend">
         </div>
     `;
     return form;
@@ -365,7 +365,7 @@ qs('#btn-import-skill-url').addEventListener('click', () => {
     form.innerHTML = `
         <div class="form-group">
             <label>GitHub skill link</label>
-            <input type="text" name="url" placeholder="https://github.com/owner/repo/blob/main/path/SKILL.md" required>
+            <input type="text" name="url" placeholder="e.g. https://github.com/owner/repo/blob/main/path/SKILL.md" required>
         </div>
         <p class="modal-help">Paste a GitHub Markdown file link or raw GitHub URL. The skill name comes from frontmatter, or from the filename when possible.</p>
     `;
@@ -732,11 +732,11 @@ qs('#btn-add-target').addEventListener('click', () => {
         </div>
         <div class="form-group">
             <label>Agent Name</label>
-            <input type="text" name="name" placeholder="My Editor" required>
+            <input type="text" name="name" placeholder="e.g. My Editor" required>
         </div>
         <div class="form-group">
             <label>Path</label>
-            <input type="text" name="path" placeholder="~/.myeditor/skills" required>
+            <input type="text" name="path" placeholder="e.g. ~/.myeditor/skills" required>
         </div>
     `;
 

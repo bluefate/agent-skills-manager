@@ -298,6 +298,24 @@ input[type="text"], textarea {
     font: inherit;
 }
 
+input[type="text"]::placeholder,
+textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 0.65;
+}
+
+input[type="text"]::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+    color: var(--text-muted);
+    opacity: 0.65;
+}
+
+input[type="text"]::-moz-placeholder,
+textarea::-moz-placeholder {
+    color: var(--text-muted);
+    opacity: 0.65;
+}
+
 input[type="text"]:focus, textarea:focus {
     outline: none;
     border-color: var(--primary);
