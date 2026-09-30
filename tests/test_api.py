@@ -108,7 +108,7 @@ def test_upload_skill_markdown_uses_filename_without_frontmatter_name(client: Te
     assert response.json()["name"] == "filename-skill"
 
 
-def test_import_skill_from_github_link(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_import_skill_from_github_link(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     class FakeResponse:
         def __enter__(self) -> "FakeResponse":
             return self
@@ -149,6 +149,9 @@ description: Imported from GitHub
     assert presence.status_code == 200
     skill = next(item for item in presence.json() if item["name"] == "github-skill")
     assert skill["source_url"] == "https://github.com/example/repo/blob/main/skills/github-skill/SKILL.md"
+    source_file = tmp_path / "hub" / "github-skill" / ".asm-source.json"
+    assert source_file.exists()
+    assert "github.com/example/repo" in source_file.read_text(encoding="utf-8")
 
 
 def test_refresh_skill_from_github(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

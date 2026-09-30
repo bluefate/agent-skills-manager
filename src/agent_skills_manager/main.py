@@ -36,12 +36,15 @@ from agent_skills_manager.models import (
 )
 from agent_skills_manager.services.projects import scan_project
 from agent_skills_manager.services.skills import (
+    clear_github_source_url,
     copy_skill,
     delete_skill,
     list_skills,
+    read_github_source_url,
     read_skill,
     read_skill_content,
     rename_skill,
+    write_github_source_url,
     write_skill_content,
     write_skill_metadata,
 )
@@ -180,26 +183,38 @@ def _save_github_sources(settings: Settings, sources: dict[str, str]) -> None:
 
 
 def _set_github_source(settings: Settings, skill_name: str, url: str) -> None:
+    write_github_source_url(settings.skills_dir / skill_name, url)
     sources = _load_github_sources(settings)
     sources[skill_name] = url
     _save_github_sources(settings, sources)
 
 
 def _rename_github_source(settings: Settings, old_name: str, new_name: str) -> None:
+    # Sidecar file moves with the skill directory on rename; keep the registry in sync.
     sources = _load_github_sources(settings)
     url = sources.pop(old_name, None)
     if url is None:
+        url = read_github_source_url(settings.skills_dir / new_name)
+    if not url:
         return
     sources[new_name] = url
     _save_github_sources(settings, sources)
 
 
 def _clear_github_source(settings: Settings, skill_name: str) -> None:
+    clear_github_source_url(settings.skills_dir / skill_name)
     sources = _load_github_sources(settings)
     if skill_name not in sources:
         return
     del sources[skill_name]
     _save_github_sources(settings, sources)
+
+
+def _github_source_for_skill(settings: Settings, skill_name: str) -> str:
+    sidecar_url = read_github_source_url(settings.skills_dir / skill_name)
+    if sidecar_url:
+        return sidecar_url
+    return _load_github_sources(settings).get(skill_name, "")
 
 
 def _removed_default_targets_file(settings: Settings) -> Path:
@@ -297,7 +312,6 @@ def _target_presence_read_only(target: AgentTarget) -> tuple[bool, str]:
 def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
     hub_skills = list_skills(settings.skills_dir, source="Universal")
     targets = _get_all_targets(settings)
-    github_sources = _load_github_sources(settings)
     skill_map: dict[str, dict[str, Skill]] = {}
 
     for skill in hub_skills:
@@ -337,7 +351,7 @@ def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
                 name=skill_name,
                 description=description,
                 tags=tags,
-                source_url=github_sources.get(skill_name, "") if "central" in skill_map[skill_name] else "",
+                source_url=_github_source_for_skill(settings, skill_name) if "central" in skill_map[skill_name] else "",
                 locations=locations,
             )
         )
@@ -549,7 +563,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Skill not found")
 
         sources = _load_github_sources(settings)
-        source_url = sources.get(skill_name)
+        source_url = _github_source_for_skill(settings, skill_name)
         if not source_url:
             raise HTTPException(status_code=400, detail="This skill has no saved GitHub source to refresh from")
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,38 @@ from agent_skills_manager.models import MoveOperation, MovePlan, Skill
 
 
 SKILL_FILE_NAME = "SKILL.md"
+GITHUB_SOURCE_FILE_NAME = ".asm-source.json"
+
+
+def read_github_source_url(skill_path: Path) -> str:
+    """Return a saved GitHub import URL for a skill directory, if present."""
+    source_file = skill_path / GITHUB_SOURCE_FILE_NAME
+    if not source_file.is_file():
+        return ""
+    try:
+        data = json.loads(source_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return ""
+    if isinstance(data, dict):
+        url = data.get("url")
+        if isinstance(url, str):
+            return url.strip()
+    return ""
+
+
+def write_github_source_url(skill_path: Path, url: str) -> None:
+    """Persist the GitHub import URL beside the skill so Refresh stays available."""
+    skill_path.mkdir(parents=True, exist_ok=True)
+    source_file = skill_path / GITHUB_SOURCE_FILE_NAME
+    payload = {"url": url.strip()}
+    source_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def clear_github_source_url(skill_path: Path) -> None:
+    """Remove a saved GitHub import URL from a skill directory."""
+    source_file = skill_path / GITHUB_SOURCE_FILE_NAME
+    if source_file.exists():
+        source_file.unlink(missing_ok=True)
 
 
 def _parse_frontmatter(content: str) -> dict[str, Any]:

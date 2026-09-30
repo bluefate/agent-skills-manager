@@ -184,6 +184,7 @@ function renderSkills() {
                             <tr data-skill="${escapeHtml(skill.name)}">
                                 <td class="skill-name-col">
                                     <strong>${escapeHtml(skill.name)}</strong>
+                                    ${skill.source_url ? `<span class="badge github-badge" title="${escapeHtml(skill.source_url)}">GitHub</span>` : ''}
                                     ${skill.tags.length ? `<div class="card-tags">${skill.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
                                 </td>
                                 ${skill.locations.map(location => `

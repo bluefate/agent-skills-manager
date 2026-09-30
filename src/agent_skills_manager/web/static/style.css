@@ -471,6 +471,16 @@ textarea {
     text-align: left;
 }
 
+.skills-table td.skill-name-col strong {
+    margin-right: 0.4rem;
+}
+
+.github-badge {
+    background: var(--surface-light);
+    color: var(--primary);
+    vertical-align: middle;
+}
+
 .skills-table td.actions-col {
     text-align: center;
     width: 1%;
