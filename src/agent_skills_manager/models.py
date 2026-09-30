@@ -81,6 +81,7 @@ class SkillPresence(BaseModel):
     name: str
     description: str = ""
     tags: list[str] = Field(default_factory=list)
+    source_url: str = ""
     locations: list[SkillLocationPresence] = Field(default_factory=list)
 
 

@@ -145,6 +145,62 @@ description: Imported from GitHub
         "https://raw.githubusercontent.com/example/repo/main/skills/github-skill/SKILL.md"
     ]
 
+    presence = client.get("/api/skills/presence")
+    assert presence.status_code == 200
+    skill = next(item for item in presence.json() if item["name"] == "github-skill")
+    assert skill["source_url"] == "https://github.com/example/repo/blob/main/skills/github-skill/SKILL.md"
+
+
+def test_refresh_skill_from_github(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self, size: int = -1) -> bytes:
+            return b"""---
+name: github-skill
+description: Updated from GitHub
+---
+
+# Updated GitHub Skill
+"""
+
+    requested_urls: list[str] = []
+
+    def fake_urlopen(request: object, timeout: int = 0) -> FakeResponse:
+        requested_urls.append(request.full_url)  # type: ignore[attr-defined]
+        return FakeResponse()
+
+    monkeypatch.setattr(app_main, "urlopen", fake_urlopen)
+
+    import_response = client.post(
+        "/api/skills/import-url",
+        json={"url": "https://github.com/example/repo/blob/main/skills/github-skill/SKILL.md"},
+    )
+    assert import_response.status_code == 200
+
+    refresh_response = client.post("/api/skills/github-skill/refresh")
+    assert refresh_response.status_code == 200
+    assert refresh_response.json()["description"] == "Updated from GitHub"
+    assert requested_urls == [
+        "https://raw.githubusercontent.com/example/repo/main/skills/github-skill/SKILL.md",
+        "https://raw.githubusercontent.com/example/repo/main/skills/github-skill/SKILL.md",
+    ]
+
+    content = client.get("/api/skills/github-skill/content")
+    assert content.status_code == 200
+    assert "# Updated GitHub Skill" in content.json()["content"]
+
+
+def test_refresh_skill_without_github_source(client: TestClient, tmp_path: Path) -> None:
+    write_skill_metadata(tmp_path / "hub" / "local-skill", "local-skill", "Local only", [])
+    response = client.post("/api/skills/local-skill/refresh")
+    assert response.status_code == 400
+    assert "no saved GitHub source" in response.json()["detail"]
+
 
 def test_import_skill_from_github_rejects_non_github_url(client: TestClient) -> None:
     response = client.post(

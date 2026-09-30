@@ -152,6 +152,56 @@ def _default_targets_file(settings: Settings) -> Path:
     return settings.config_dir / "default-targets.json"
 
 
+def _github_sources_file(settings: Settings) -> Path:
+    return settings.config_dir / "github-sources.json"
+
+
+def _load_github_sources(settings: Settings) -> dict[str, str]:
+    sources_file = _github_sources_file(settings)
+    if not sources_file.exists():
+        return {}
+    try:
+        data = json.loads(sources_file.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return {
+                str(name): str(url)
+                for name, url in data.items()
+                if isinstance(name, str) and isinstance(url, str) and name and url
+            }
+    except (json.JSONDecodeError, TypeError, OSError):
+        pass
+    return {}
+
+
+def _save_github_sources(settings: Settings, sources: dict[str, str]) -> None:
+    sources_file = _github_sources_file(settings)
+    settings.ensure_dirs()
+    sources_file.write_text(json.dumps(sources, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _set_github_source(settings: Settings, skill_name: str, url: str) -> None:
+    sources = _load_github_sources(settings)
+    sources[skill_name] = url
+    _save_github_sources(settings, sources)
+
+
+def _rename_github_source(settings: Settings, old_name: str, new_name: str) -> None:
+    sources = _load_github_sources(settings)
+    url = sources.pop(old_name, None)
+    if url is None:
+        return
+    sources[new_name] = url
+    _save_github_sources(settings, sources)
+
+
+def _clear_github_source(settings: Settings, skill_name: str) -> None:
+    sources = _load_github_sources(settings)
+    if skill_name not in sources:
+        return
+    del sources[skill_name]
+    _save_github_sources(settings, sources)
+
+
 def _removed_default_targets_file(settings: Settings) -> Path:
     return settings.config_dir / "removed-default-targets.json"
 
@@ -247,6 +297,7 @@ def _target_presence_read_only(target: AgentTarget) -> tuple[bool, str]:
 def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
     hub_skills = list_skills(settings.skills_dir, source="Central Hub")
     targets = _get_all_targets(settings)
+    github_sources = _load_github_sources(settings)
     skill_map: dict[str, dict[str, Skill]] = {}
 
     for skill in hub_skills:
@@ -286,6 +337,7 @@ def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
                 name=skill_name,
                 description=description,
                 tags=tags,
+                source_url=github_sources.get(skill_name, "") if "central" in skill_map[skill_name] else "",
                 locations=locations,
             )
         )
@@ -485,7 +537,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         content = await asyncio.to_thread(_fetch_skill_markdown, raw_url)
         skill_name = _validate_skill_name(_skill_name_from_upload(filename, content))
         skill_path = settings.skills_dir / skill_name
-        return write_skill_content(skill_path, content)
+        skill = write_skill_content(skill_path, content)
+        _set_github_source(settings, skill_name, request.url.strip())
+        return skill
+
+    @app.post("/api/skills/{skill_name}/refresh", response_model=Skill)
+    async def refresh_skill_from_github(skill_name: str) -> Skill:
+        skill_name = _validate_skill_name(skill_name)
+        skill_path = settings.skills_dir / skill_name
+        if not skill_path.exists():
+            raise HTTPException(status_code=404, detail="Skill not found")
+
+        sources = _load_github_sources(settings)
+        source_url = sources.get(skill_name)
+        if not source_url:
+            raise HTTPException(status_code=400, detail="This skill has no saved GitHub source to refresh from")
+
+        raw_url, filename = _github_raw_skill_url(source_url)
+        if not filename.lower().endswith(".md"):
+            raise HTTPException(status_code=400, detail="GitHub link must point to a Markdown .md file")
+
+        content = await asyncio.to_thread(_fetch_skill_markdown, raw_url)
+        refreshed_name = _validate_skill_name(_skill_name_from_upload(filename, content))
+        if refreshed_name != skill_name:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"GitHub skill name is now '{refreshed_name}', which differs from '{skill_name}'. "
+                    "Import it as a new skill instead."
+                ),
+            )
+
+        skill = write_skill_content(skill_path, content)
+        _set_github_source(settings, skill_name, source_url)
+        return skill
 
     @app.post("/api/skills/{skill_name}/rename", response_model=Skill)
     async def rename_existing_skill(skill_name: str, new_name: str) -> Skill:
@@ -493,6 +578,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not old_path.exists():
             raise HTTPException(status_code=404, detail="Skill not found")
         new_path = rename_skill(old_path, new_name)
+        _rename_github_source(settings, skill_name, new_name)
         return read_skill(new_path) or Skill(name=new_name, path=new_path, source="central")
 
     @app.delete("/api/skills/{skill_name}")
@@ -501,6 +587,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not skill_path.exists():
             raise HTTPException(status_code=404, detail="Skill not found")
         delete_skill(skill_path)
+        _clear_github_source(settings, skill_name)
         return {"status": "ok", "message": f"Skill '{skill_name}' deleted"}
 
     @app.get("/api/targets", response_model=list[AgentTarget])

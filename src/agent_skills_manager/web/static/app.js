@@ -202,6 +202,7 @@ function renderSkills() {
                                     <div class="actions table-actions">
                                         <button class="btn small" data-edit="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Edit</button>
                                         <button class="btn small" data-preview-skill="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Preview</button>
+                                        ${skill.source_url ? `<button class="btn small" data-refresh-skill="${escapeHtml(skill.name)}" title="${escapeHtml(skill.source_url)}" ${hasCentral ? '' : 'disabled'}>Refresh</button>` : ''}
                                         <button class="btn small danger" data-delete="${escapeHtml(skill.name)}" ${hasCentral ? '' : 'disabled'}>Delete</button>
                                     </div>
                                 </td>
@@ -219,6 +220,9 @@ function renderSkills() {
     });
     qsa('[data-preview-skill]', list).forEach(btn => {
         btn.addEventListener('click', () => previewSkill(btn.dataset.previewSkill));
+    });
+    qsa('[data-refresh-skill]', list).forEach(btn => {
+        btn.addEventListener('click', () => refreshSkillFromGithub(btn.dataset.refreshSkill));
     });
     qsa('[data-delete]', list).forEach(btn => {
         btn.addEventListener('click', () => deleteSkill(btn.dataset.delete));
@@ -410,6 +414,25 @@ async function deleteSkill(name) {
     await API.delete(`/api/skills/${encodeURIComponent(name)}`);
     await loadSkills();
     showToast('Skill deleted. Restart your agent/editor if it was loaded.');
+}
+
+async function refreshSkillFromGithub(name) {
+    const skill = state.skillPresence.find(item => item.name === name);
+    const sourceUrl = skill?.source_url;
+    if (!sourceUrl) {
+        showToast('No GitHub source saved for this skill.', 'error');
+        return;
+    }
+    if (!confirm(`Refresh "${name}" from GitHub?\n\nThis overwrites the local SKILL.md with the latest file from:\n${sourceUrl}`)) {
+        return;
+    }
+    try {
+        await API.post(`/api/skills/${encodeURIComponent(name)}/refresh`, {});
+        await loadSkills();
+        showToast(`Refreshed "${name}" from GitHub. Restart your agent/editor to pick it up.`);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
 }
 
 // Targets
