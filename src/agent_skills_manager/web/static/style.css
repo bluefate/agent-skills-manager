@@ -369,6 +369,35 @@ textarea {
     margin-top: 0.5rem;
 }
 
+.location-notes {
+    margin-top: var(--gap);
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-light);
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+.location-notes h3 {
+    margin: 0 0 0.4rem;
+    color: var(--text);
+    font-size: 0.875rem;
+}
+
+.location-notes ul {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.location-notes li + li {
+    margin-top: 0.25rem;
+}
+
+.location-notes strong {
+    color: var(--text);
+}
+
 .list-section-header {
     display: flex;
     align-items: baseline;

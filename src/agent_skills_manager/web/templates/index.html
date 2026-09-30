@@ -110,6 +110,15 @@
                 <p><strong>Missing</strong> means the agent’s expected skills path does not exist yet. Use <strong>Preview &amp; Create Link</strong> to review the operation and create that path as a link to the central hub.</p>
             </div>
             <div id="targets-list" class="card-list targets-grid"></div>
+            <div class="location-notes">
+                <h3>Linking notes</h3>
+                <ul>
+                    <li><strong>Preview &amp; Symlink</strong> moves existing skills from that agent folder into the central hub before creating the link.</li>
+                    <li><strong>Remove Link</strong> removes only the symlink. It can recreate an empty folder, but it does not move original skills back.</li>
+                    <li><strong>Undo Symlink</strong> restores the skills that were moved during link creation, when undo history is available.</li>
+                    <li>Merge or delete conflict choices may prevent a clean automatic undo because the original copies are no longer separate.</li>
+                </ul>
+            </div>
         </section>
 
         <section id="projects" class="panel project-reviewer">
