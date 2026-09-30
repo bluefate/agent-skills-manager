@@ -256,16 +256,21 @@ async function setSkillPresence(input) {
     const skillName = input.dataset.skillPresence;
     const locationId = input.dataset.locationId;
     const present = input.checked;
-    const location = state.skillPresence
-        .find(skill => skill.name === skillName)
-        ?.locations.find(item => item.location_id === locationId);
+    const skill = state.skillPresence.find(item => item.name === skillName);
+    const location = skill?.locations.find(item => item.location_id === locationId);
     const locationName = location?.name || 'this location';
     const isUniversal = locationId === 'central';
+    const remainingPresent = (skill?.locations || []).filter(
+        item => item.present && item.location_id !== locationId
+    ).length;
 
     if (!present) {
-        const warning = isUniversal
+        let warning = isUniversal
             ? `Remove "${skillName}" from ${locationName}?\n\nThis deletes the skill from the Universal hub.`
             : `Remove "${skillName}" from ${locationName}?`;
+        if (remainingPresent === 0) {
+            warning = `Delete "${skillName}"?\n\nThis is the last copy. Unchecking ${locationName} removes the skill completely and it will disappear from the Skill Library.`;
+        }
         if (!confirm(warning)) {
             input.checked = true;
             return;
@@ -280,9 +285,11 @@ async function setSkillPresence(input) {
             present,
         });
         await loadSkills();
-        const action = present
-            ? `Copied "${skillName}" to ${locationName}.`
-            : `Removed "${skillName}" from ${locationName}.`;
+        const action = !present && remainingPresent === 0
+            ? `Deleted "${skillName}".`
+            : present
+                ? `Copied "${skillName}" to ${locationName}.`
+                : `Removed "${skillName}" from ${locationName}.`;
         showToast(`${action} Restart that agent/editor so the change takes effect.`);
     } catch (err) {
         input.checked = !present;
