@@ -876,6 +876,22 @@ textarea {
     color: var(--text);
 }
 
+.restart-note {
+    margin: 0 0 var(--gap);
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--warning);
+    border-radius: var(--radius);
+    background: var(--surface-light);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.restart-note strong {
+    color: var(--text);
+}
+
 .hub-location {
     margin-bottom: var(--gap);
     padding: 0.875rem 1rem;
