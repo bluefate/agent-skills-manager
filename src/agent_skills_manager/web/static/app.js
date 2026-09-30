@@ -459,8 +459,8 @@ function renderTargets() {
                 ${t.state === 'directory' || t.state === 'missing' ? `<button class="btn small primary" data-preview="${escapeHtml(t.id)}">${t.state === 'missing' ? 'Preview & Create Link' : 'Preview & Symlink'}</button>` : ''}
                 ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Link</button>` : ''}
                 ${t.can_undo ? `<button class="btn small warning" data-undo="${escapeHtml(t.id)}">Restore Original</button>` : ''}
-                ${isDefaultTarget(t) ? `<button class="btn small" data-remove-default-target="${escapeHtml(t.id)}">Remove from App</button>` : ''}
-                ${!isDefaultTarget(t) ? `<button class="btn small danger" data-delete-target="${escapeHtml(t.id)}">Remove from App</button>` : ''}
+                ${isDefaultTarget(t) ? `<button class="btn small" data-remove-default-target="${escapeHtml(t.id)}">Remove Location</button>` : ''}
+                ${!isDefaultTarget(t) ? `<button class="btn small danger" data-delete-target="${escapeHtml(t.id)}">Remove Location</button>` : ''}
             </div>
         </div>
     `}).join('');
