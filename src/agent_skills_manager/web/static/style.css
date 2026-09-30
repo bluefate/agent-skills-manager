@@ -336,12 +336,37 @@ textarea {
 
 .targets-grid .card {
     min-width: 0;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.targets-grid .card-title {
+    margin-bottom: 0.35rem;
+    font-size: 0.95rem;
+}
+
+.targets-grid .card-meta {
+    margin-bottom: 0.45rem;
+    font-size: 0.75rem;
+}
+
+.targets-grid .badge {
+    font-size: 0.6875rem;
+    padding: 0.1rem 0.4rem;
+}
+
+.targets-grid p {
+    margin: 0 0 0.4rem;
 }
 
 .target-status {
-    margin: 0 0 0.5rem;
+    margin: 0 0 0.4rem;
     color: var(--text-muted);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
+}
+
+.targets-grid .actions {
+    margin-top: 0.5rem;
 }
 
 .list-section-header {
@@ -761,6 +786,10 @@ textarea {
     font-size: 0.95rem;
 }
 
+#targets .info-box {
+    font-size: 0.875rem;
+}
+
 .info-box code {
     color: var(--primary);
 }
@@ -771,7 +800,7 @@ textarea {
 
 .hub-location {
     margin-bottom: var(--gap);
-    padding: var(--gap);
+    padding: 0.8rem;
     border: 1px solid var(--border);
     border-left: 4px solid var(--primary);
     border-radius: var(--radius);
@@ -793,7 +822,7 @@ textarea {
     display: block;
     margin-bottom: 0.25rem;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     text-transform: uppercase;
 }
@@ -801,6 +830,7 @@ textarea {
 .hub-location-heading code {
     color: var(--primary);
     overflow-wrap: anywhere;
+    font-size: 0.875rem;
 }
 
 .hub-badge {
@@ -811,9 +841,9 @@ textarea {
 
 .hub-location p {
     max-width: 52rem;
-    margin: 0.75rem 0 0;
+    margin: 0.55rem 0 0;
     color: var(--text-muted);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
 }
 
 .hub-location p code {
@@ -835,9 +865,17 @@ textarea {
     background: var(--surface);
 }
 
+#targets .capability-card {
+    padding: 0.75rem;
+}
+
 .capability-card h3 {
     margin: 0 0 0.35rem;
     font-size: 0.95rem;
+}
+
+#targets .capability-card h3 {
+    font-size: 0.875rem;
 }
 
 .capability-card p {
@@ -845,6 +883,10 @@ textarea {
     color: var(--text-muted);
     font-size: 0.85rem;
     line-height: 1.5;
+}
+
+#targets .capability-card p {
+    font-size: 0.8125rem;
 }
 
 .capability-card strong {
