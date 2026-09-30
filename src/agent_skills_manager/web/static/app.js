@@ -160,13 +160,13 @@ function renderSkills() {
     }
 
     const locations = rows[0].locations;
+    const tableColumnCount = locations.length + 2;
     list.innerHTML = `
         <div class="table-wrap">
             <table class="skills-table">
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Description</th>
                         ${locations.map(location => `<th class="presence-col">${escapeHtml(location.name)}</th>`).join('')}
                         <th>Actions</th>
                     </tr>
@@ -175,13 +175,17 @@ function renderSkills() {
                     ${rows.map(skill => {
                         const central = skill.locations.find(location => location.location_id === 'central');
                         const hasCentral = central?.present;
+                        const descriptionRow = skill.description ? `
+                            <tr class="skill-description-row">
+                                <td colspan="${tableColumnCount}">${escapeHtml(skill.description)}</td>
+                            </tr>
+                        ` : '';
                         return `
                             <tr data-skill="${escapeHtml(skill.name)}">
                                 <td>
                                     <strong>${escapeHtml(skill.name)}</strong>
                                     ${skill.tags.length ? `<div class="card-tags">${skill.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
                                 </td>
-                                <td>${skill.description ? escapeHtml(skill.description) : '<span class="muted">No description</span>'}</td>
                                 ${skill.locations.map(location => `
                                     <td class="presence-col">
                                         <input
@@ -202,6 +206,7 @@ function renderSkills() {
                                     </div>
                                 </td>
                             </tr>
+                            ${descriptionRow}
                         `;
                     }).join('')}
                 </tbody>

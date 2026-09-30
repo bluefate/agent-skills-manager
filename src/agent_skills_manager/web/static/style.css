@@ -457,6 +457,13 @@ textarea {
     font-size: 0.875rem;
 }
 
+.skills-table .skill-description-row td {
+    padding: 0 0.65rem 0.55rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
 .skills-table tbody tr:last-child td {
     border-bottom: 0;
 }
