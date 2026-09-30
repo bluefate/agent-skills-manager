@@ -111,10 +111,15 @@ async function checkForUpdate() {
 
 checkForUpdate();
 
+let toastTimer = null;
+
 function showToast(message, type = 'success') {
     toast.textContent = message;
     toast.className = `toast ${type}`;
-    setTimeout(() => toast.classList.add('hidden'), 4000);
+    if (toastTimer) {
+        clearTimeout(toastTimer);
+    }
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 5000);
 }
 
 function openModal(title, body, actions = []) {

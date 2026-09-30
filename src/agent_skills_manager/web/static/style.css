@@ -920,15 +920,21 @@ textarea {
 
 .toast {
     position: fixed;
-    bottom: 1rem;
-    right: 1rem;
+    left: 50%;
+    bottom: 1.25rem;
+    transform: translateX(-50%);
+    width: min(52rem, calc(100vw - 2rem));
     background: var(--surface);
     border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
     color: var(--text);
-    padding: 0.75rem 1rem;
+    padding: 1rem 1.25rem;
     border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.28);
     z-index: 101;
-    max-width: 360px;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    text-align: left;
 }
 
 .toast.hidden {
@@ -936,11 +942,13 @@ textarea {
 }
 
 .toast.error {
-    border-color: var(--danger);
+    border-color: var(--border);
+    border-left-color: var(--danger);
 }
 
 .toast.success {
-    border-color: var(--success);
+    border-color: var(--border);
+    border-left-color: var(--success);
 }
 
 .checkbox-row {
