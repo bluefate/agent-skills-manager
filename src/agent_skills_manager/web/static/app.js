@@ -260,10 +260,16 @@ async function setSkillPresence(input) {
         .find(skill => skill.name === skillName)
         ?.locations.find(item => item.location_id === locationId);
     const locationName = location?.name || 'this location';
+    const isUniversal = locationId === 'central';
 
-    if (!present && !confirm(`Remove "${skillName}" from ${locationName}?`)) {
-        input.checked = true;
-        return;
+    if (!present) {
+        const warning = isUniversal
+            ? `Remove "${skillName}" from ${locationName}?\n\nThis deletes the skill from the Universal hub.`
+            : `Remove "${skillName}" from ${locationName}?`;
+        if (!confirm(warning)) {
+            input.checked = true;
+            return;
+        }
     }
 
     input.disabled = true;
@@ -274,7 +280,10 @@ async function setSkillPresence(input) {
             present,
         });
         await loadSkills();
-        showToast(result.message);
+        const action = present
+            ? `Copied "${skillName}" to ${locationName}.`
+            : `Removed "${skillName}" from ${locationName}.`;
+        showToast(`${action} Restart that agent/editor so the change takes effect.`);
     } catch (err) {
         input.checked = !present;
         input.disabled = false;
