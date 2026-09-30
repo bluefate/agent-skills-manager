@@ -709,6 +709,7 @@ async function undoSymlink(id) {
     }
     const result = await API.post('/api/targets/undo-symlink', { target_id: id });
     await loadTargets();
+    await loadSkills();
     showToast(
         result.status === 'ok'
             ? `${result.message} Restart that agent/editor to use its own directory again.`
