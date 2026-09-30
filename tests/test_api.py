@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import agent_skills_manager.main as app_main
 from agent_skills_manager.config import Settings
 from agent_skills_manager.main import create_app
 
@@ -72,6 +73,86 @@ def test_skills_crud(client: TestClient) -> None:
     assert response.json() == []
 
 
+def test_upload_skill_markdown(client: TestClient) -> None:
+    content = b"""---
+name: uploaded-skill
+description: Imported from Markdown
+tags:
+  - upload
+---
+
+# Uploaded Skill
+
+Use this to test imports.
+"""
+    response = client.post(
+        "/api/skills/upload",
+        files={"file": ("SKILL.md", content, "text/markdown")},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "uploaded-skill"
+    assert response.json()["description"] == "Imported from Markdown"
+
+    response = client.get("/api/skills/uploaded-skill/content")
+    assert response.status_code == 200
+    assert "# Uploaded Skill" in response.json()["content"]
+
+
+def test_upload_skill_markdown_uses_filename_without_frontmatter_name(client: TestClient) -> None:
+    response = client.post(
+        "/api/skills/upload",
+        files={"file": ("filename-skill.md", b"# Filename Skill\n", "text/markdown")},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "filename-skill"
+
+
+def test_import_skill_from_github_link(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self, size: int = -1) -> bytes:
+            return b"""---
+name: github-skill
+description: Imported from GitHub
+---
+
+# GitHub Skill
+"""
+
+    requested_urls: list[str] = []
+
+    def fake_urlopen(request: object, timeout: int = 0) -> FakeResponse:
+        requested_urls.append(request.full_url)  # type: ignore[attr-defined]
+        return FakeResponse()
+
+    monkeypatch.setattr(app_main, "urlopen", fake_urlopen)
+
+    response = client.post(
+        "/api/skills/import-url",
+        json={"url": "https://github.com/example/repo/blob/main/skills/github-skill/SKILL.md"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "github-skill"
+    assert response.json()["description"] == "Imported from GitHub"
+    assert requested_urls == [
+        "https://raw.githubusercontent.com/example/repo/main/skills/github-skill/SKILL.md"
+    ]
+
+
+def test_import_skill_from_github_rejects_non_github_url(client: TestClient) -> None:
+    response = client.post(
+        "/api/skills/import-url",
+        json={"url": "https://example.com/SKILL.md"},
+    )
+    assert response.status_code == 400
+
+
 def test_targets_list(client: TestClient) -> None:
     response = client.get("/api/targets")
     assert response.status_code == 200
@@ -95,6 +176,28 @@ def test_default_targets(client: TestClient) -> None:
     assert response.status_code == 200
     active = response.json()
     assert len(active) == 2
+
+
+def test_remove_default_target_from_known_locations(client: TestClient) -> None:
+    targets = client.get("/api/targets/defaults").json()
+    removed = targets[0]
+
+    response = client.delete("/api/targets", params={"target_id": removed["id"]})
+    assert response.status_code == 200
+    assert response.json()["message"] == "Known agent location removed"
+
+    response = client.get("/api/targets/defaults")
+    assert response.status_code == 200
+    known_ids = [target["id"] for target in response.json()]
+    assert removed["id"] not in known_ids
+
+    response = client.get("/api/targets")
+    assert response.status_code == 200
+    managed_ids = [target["id"] for target in response.json()]
+    assert removed["id"] not in managed_ids
+
+    response = client.post("/api/targets/defaults", json=[removed["id"]])
+    assert response.status_code == 400
 
 
 def test_target_preview(client: TestClient) -> None:

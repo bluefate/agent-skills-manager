@@ -98,6 +98,12 @@ class ImportRequest(BaseModel):
     conflict_strategy: Literal["rename", "skip", "overwrite"] = "rename"
 
 
+class SkillUrlImportRequest(BaseModel):
+    """Request to import a Markdown skill from a URL."""
+
+    url: str
+
+
 class SymlinkHistory(BaseModel):
     """Record of skills moved during a symlink operation so it can be undone."""
 

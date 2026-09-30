@@ -17,6 +17,14 @@ const API = {
         const res = await fetch(path, { method: 'DELETE' });
         if (!res.ok) throw new Error(await res.text());
         return res.json();
+    },
+    async upload(path, formData) {
+        const res = await fetch(path, {
+            method: 'POST',
+            body: formData,
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
     }
 };
 
@@ -230,6 +238,53 @@ qs('#btn-add-skill').addEventListener('click', () => {
     ]);
 });
 
+qs('#btn-upload-skill').addEventListener('click', () => {
+    qs('#skill-upload-input').click();
+});
+
+qs('#skill-upload-input').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const skill = await API.upload('/api/skills/upload', formData);
+        await loadSkills();
+        showSkillUsage(skill.name);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+});
+
+qs('#btn-import-skill-url').addEventListener('click', () => {
+    const form = document.createElement('form');
+    form.innerHTML = `
+        <div class="form-group">
+            <label>GitHub skill link</label>
+            <input type="text" name="url" placeholder="https://github.com/owner/repo/blob/main/path/SKILL.md" required>
+        </div>
+        <p class="modal-help">Paste a GitHub Markdown file link or raw GitHub URL. The skill name comes from frontmatter, or from the filename when possible.</p>
+    `;
+
+    openModal('Import Skill from GitHub', form, [
+        makeButton('Cancel', '', closeModal),
+        makeButton('Import', 'primary', async () => {
+            const data = Object.fromEntries(new FormData(form));
+            try {
+                const skill = await API.post('/api/skills/import-url', { url: data.url });
+                closeModal();
+                await loadSkills();
+                showSkillUsage(skill.name);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }),
+    ]);
+});
+
 function showSkillUsage(skillName) {
     const body = document.createElement('div');
     body.innerHTML = `
@@ -332,6 +387,7 @@ function renderTargets() {
                 ${t.state === 'directory' || t.state === 'missing' ? `<button class="btn small primary" data-preview="${escapeHtml(t.id)}">${t.state === 'missing' ? 'Preview & Create Link' : 'Preview & Symlink'}</button>` : ''}
                 ${t.state === 'symlink_ok' ? `<button class="btn small danger" data-remove="${escapeHtml(t.id)}">Remove Symlink</button>` : ''}
                 ${t.can_undo ? `<button class="btn small warning" data-undo="${escapeHtml(t.id)}">Undo Symlink</button>` : ''}
+                ${isDefaultTarget(t) ? `<button class="btn small" data-remove-default-target="${escapeHtml(t.id)}">Remove Location</button>` : ''}
                 ${!isDefaultTarget(t) ? `<button class="btn small danger" data-delete-target="${escapeHtml(t.id)}">Delete Location</button>` : ''}
             </div>
         </div>
@@ -348,6 +404,9 @@ function renderTargets() {
     });
     qsa('[data-delete-target]', list).forEach(btn => {
         btn.addEventListener('click', () => deleteTarget(btn.dataset.deleteTarget));
+    });
+    qsa('[data-remove-default-target]', list).forEach(btn => {
+        btn.addEventListener('click', () => removeDefaultTarget(btn.dataset.removeDefaultTarget));
     });
 }
 
@@ -374,11 +433,14 @@ function renderDefaultTargets() {
             <strong>Known agent locations:</strong> check the ones you want to manage. Unchecked locations stay hidden from the dashboard.
             <div class="default-targets-list">
                 ${state.defaultTargets.map(t => `
-                    <label class="checkbox-row">
-                        <input type="checkbox" value="${escapeHtml(t.id)}" ${state.enabledDefaults.includes(t.id) ? 'checked' : ''}>
-                        <span class="default-target-name">${escapeHtml(t.name)}</span>
-                        <code class="default-target-path">${escapeHtml(t.path)}</code>
-                    </label>
+                    <div class="default-target-row">
+                        <label class="checkbox-row">
+                            <input type="checkbox" value="${escapeHtml(t.id)}" ${state.enabledDefaults.includes(t.id) ? 'checked' : ''}>
+                            <span class="default-target-name">${escapeHtml(t.name)}</span>
+                            <code class="default-target-path">${escapeHtml(t.path)}</code>
+                        </label>
+                        <button class="btn small danger" data-remove-default="${escapeHtml(t.id)}">Remove</button>
+                    </div>
                 `).join('')}
             </div>
             <button class="btn small" id="btn-save-defaults">Save</button>
@@ -389,6 +451,20 @@ function renderDefaultTargets() {
         const checked = qsa('input[type="checkbox"]:checked', container).map(cb => cb.value);
         saveDefaultTargets(checked);
     });
+    qsa('[data-remove-default]', container).forEach(btn => {
+        btn.addEventListener('click', () => removeDefaultTarget(btn.dataset.removeDefault));
+    });
+}
+
+async function removeDefaultTarget(id) {
+    const target = state.defaultTargets.find(t => t.id === id);
+    if (!target) return;
+    if (!confirm(`Remove ${target.name} from known agent locations?\n\nThis removes the path from the app. It does not delete files or remove symlinks on your computer.`)) {
+        return;
+    }
+    await API.delete(`/api/targets?target_id=${encodeURIComponent(id)}`);
+    await loadTargets();
+    showToast('Known agent location removed');
 }
 
 async function previewTarget(id, conflictStrategy = 'rename') {

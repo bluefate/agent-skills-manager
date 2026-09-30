@@ -87,6 +87,14 @@ def read_skill_content(path: Path) -> str | None:
         return None
 
 
+def write_skill_content(path: Path, content: str) -> Skill:
+    """Create or update a skill directory from complete SKILL.md content."""
+    path.mkdir(parents=True, exist_ok=True)
+    skill_file = path / SKILL_FILE_NAME
+    skill_file.write_text(content, encoding="utf-8")
+    return _build_skill_from_dir(path)
+
+
 def write_skill_metadata(path: Path, name: str, description: str, tags: list[str]) -> Skill:
     """Create or update a skill directory and its SKILL.md metadata."""
     path.mkdir(parents=True, exist_ok=True)
