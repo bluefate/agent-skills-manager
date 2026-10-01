@@ -58,6 +58,18 @@ Open <http://127.0.0.1:8000> for the home page, then click **Open Dashboard** or
 
 If the app is already running, stop the server with `Ctrl+C`, start it again, and hard-refresh the dashboard in your browser (`Cmd+Shift+R` on macOS or `Ctrl+Shift+R` on Windows and Linux).
 
+Example update flow when you launched the app from a source checkout:
+
+```bash
+# In the terminal running the app:
+# press Ctrl+C
+
+cd /path/to/skill-manager
+git pull
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/agent-skills-manager run
+```
+
 For an editable installation from this repository, update the checkout and refresh the installation before restarting the server:
 
 ```bash

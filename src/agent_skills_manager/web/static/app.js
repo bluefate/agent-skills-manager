@@ -69,6 +69,8 @@ let state = {
     project: null,
 };
 
+const BOOTSTRAP_SKILL_NAME = 'using-skills';
+
 // Theme toggle
 function applyTheme(light) {
     document.body.classList.toggle('light-mode', light);
@@ -296,8 +298,14 @@ async function setSkillPresence(input) {
         let warning = isUniversal
             ? `Remove "${skillName}" from ${locationName}?\n\nThis deletes the skill from the Universal hub.`
             : `Remove "${skillName}" from ${locationName}?`;
+        if (skillName === BOOTSTRAP_SKILL_NAME) {
+            warning += '\n\nRemoving this bootstrap skill may make the agent less consistent about discovering and using installed skills.';
+        }
         if (remainingPresent === 0) {
             warning = `Delete "${skillName}"?\n\nThis is the last copy. Unchecking ${locationName} removes the skill completely and it will disappear from the Skill Library.`;
+            if (skillName === BOOTSTRAP_SKILL_NAME) {
+                warning += '\n\nWithout this bootstrap skill, the agent may be less consistent about discovering and using installed skills.';
+            }
         }
         if (!confirm(warning)) {
             input.checked = true;
