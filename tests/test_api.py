@@ -292,13 +292,58 @@ def test_skill_presence_includes_hub_and_agent_only_skills(tmp_path: Path) -> No
     assert response.status_code == 200
     rows = {row["name"]: row for row in response.json()}
 
-    assert set(rows) == {"hub-skill", "target-only"}
+    assert {"hub-skill", "target-only", "using-skills"}.issubset(rows)
     hub_skill_locations = {location["location_id"]: location for location in rows["hub-skill"]["locations"]}
     target_only_locations = {location["location_id"]: location for location in rows["target-only"]["locations"]}
+    bootstrap_locations = {location["location_id"]: location for location in rows["using-skills"]["locations"]}
     assert hub_skill_locations["central"]["present"] is True
     assert hub_skill_locations[target["id"]]["present"] is False
     assert target_only_locations["central"]["present"] is False
     assert target_only_locations[target["id"]]["present"] is True
+    assert bootstrap_locations["central"]["present"] is False
+    assert bootstrap_locations[target["id"]]["present"] is False
+    assert rows["using-skills"]["description"].startswith("Reminds the agent")
+
+
+def test_skill_presence_installs_bootstrap_skill_to_hub(tmp_path: Path) -> None:
+    settings = Settings(skills_dir=tmp_path / "hub", config_dir=tmp_path / "config")
+    client = TestClient(create_app(settings))
+
+    response = client.post(
+        "/api/skills/presence",
+        json={"skill_name": "using-skills", "location_id": "central", "present": True},
+    )
+    assert response.status_code == 200
+    skill_file = tmp_path / "hub" / "using-skills" / "SKILL.md"
+    assert skill_file.exists()
+    assert "Before answering, planning, or writing code" in skill_file.read_text(encoding="utf-8")
+
+    presence = client.get("/api/skills/presence")
+    row = next(item for item in presence.json() if item["name"] == "using-skills")
+    central = next(item for item in row["locations"] if item["location_id"] == "central")
+    assert central["present"] is True
+    assert row["added_via"] == "created"
+
+
+def test_skill_presence_installs_bootstrap_skill_to_agent_location(tmp_path: Path) -> None:
+    settings = Settings(skills_dir=tmp_path / "hub", config_dir=tmp_path / "config")
+    client = TestClient(create_app(settings))
+    target_path = tmp_path / "cursor-skills"
+
+    client.post("/api/targets/defaults", json=[])
+    target_path.mkdir(parents=True)
+    target = client.post(
+        "/api/targets",
+        json={"name": "Cursor Test", "path": str(target_path), "id": str(target_path), "state": "missing"},
+    ).json()
+
+    response = client.post(
+        "/api/skills/presence",
+        json={"skill_name": "using-skills", "location_id": target["id"], "present": True},
+    )
+    assert response.status_code == 200
+    assert (target_path / "using-skills" / "SKILL.md").exists()
+    assert not (tmp_path / "hub" / "using-skills").exists()
 
 
 def test_skill_presence_toggle_copies_and_removes_skills(tmp_path: Path) -> None:

@@ -371,9 +371,14 @@ def _get_skill_presence(settings: Settings) -> list[SkillPresence]:
         for skill in target.skills:
             skill_map.setdefault(_skill_key(skill), {})[target.id] = skill
 
+    skill_map.setdefault(BOOTSTRAP_SKILL_NAME, {})
+
     rows: list[SkillPresence] = []
     for skill_name in sorted(skill_map):
-        description, tags = _skill_summary(skill_map[skill_name])
+        if skill_name == BOOTSTRAP_SKILL_NAME and not skill_map[skill_name]:
+            description, tags = BOOTSTRAP_SKILL_DESCRIPTION, BOOTSTRAP_SKILL_TAGS
+        else:
+            description, tags = _skill_summary(skill_map[skill_name])
         locations = [
             SkillLocationPresence(
                 location_id="central",
@@ -428,6 +433,15 @@ def _find_skill_source(settings: Settings, skill_name: str, excluded_location_id
     return None
 
 
+def _write_managed_skill(settings: Settings, skill_name: str, destination: Path) -> None:
+    if skill_name != BOOTSTRAP_SKILL_NAME:
+        raise HTTPException(status_code=404, detail="No source copy found for this skill")
+
+    write_skill_content(destination, BOOTSTRAP_SKILL_CONTENT)
+    if destination == settings.skills_dir / BOOTSTRAP_SKILL_NAME:
+        _set_skill_origin(settings, BOOTSTRAP_SKILL_NAME, "created")
+
+
 def _set_skill_presence(settings: Settings, request: SkillPresenceRequest) -> dict[str, str]:
     if "/" in request.skill_name or "\\" in request.skill_name or request.skill_name in {"", ".", ".."}:
         raise HTTPException(status_code=400, detail="Invalid skill name")
@@ -452,7 +466,8 @@ def _set_skill_presence(settings: Settings, request: SkillPresenceRequest) -> di
 
     source = _find_skill_source(settings, request.skill_name, request.location_id)
     if source is None:
-        raise HTTPException(status_code=404, detail="No source copy found for this skill")
+        _write_managed_skill(settings, request.skill_name, destination)
+        return {"status": "ok", "message": "Managed skill created at location"}
 
     copy_skill(source, destination)
     return {"status": "ok", "message": "Skill copied to location"}
@@ -460,6 +475,28 @@ def _set_skill_presence(settings: Settings, request: SkillPresenceRequest) -> di
 
 GITHUB_RELEASE_URL = "https://api.github.com/repos/bluefate/skill-manager/releases/latest"
 UPDATE_CACHE_SECONDS = 3600
+BOOTSTRAP_SKILL_NAME = "using-skills"
+BOOTSTRAP_SKILL_DESCRIPTION = "Reminds the agent to inspect available skills before answering or writing code."
+BOOTSTRAP_SKILL_TAGS = ["bootstrap", "skills"]
+BOOTSTRAP_SKILL_CONTENT = """---
+name: using-skills
+description: Reminds the agent to inspect available skills before answering or writing code.
+tags:
+  - bootstrap
+  - skills
+---
+
+# Using Skills
+
+Before answering, planning, or writing code:
+
+1. Check the available skill library for any skill that matches the user's request.
+2. Read the relevant skill instructions before acting.
+3. Follow those instructions when they apply.
+4. If no skill applies, proceed normally.
+
+This skill is intentionally small. Its job is to make skill discovery a habit.
+"""
 
 
 def _version_key(value: str) -> tuple[int, ...] | None:
